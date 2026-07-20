@@ -8,17 +8,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#17191A;
-    --line:#2A2C2E;
-    --line-soft:#212324;
-    --input:#1E2021;
-    --text:#EDEAE3;
-    --muted:#83898D;
-    --faint:#565B5E;
-    --amber:#E8A33D;
-    --amber-dim:rgba(232,163,61,0.12);
-    --favor:#7FB88A;
-    --pagar:#D9776A;
+    --bg:#F2F3F5;
+    --line:#E1E4E8;
+    --line-soft:#ECEEF0;
+    --input:#FFFFFF;
+    --text:#16181B;
+    --muted:#686E76;
+    --faint:#9CA1A7;
+    --amber:#C97C1F;
+    --amber-dim:rgba(201,124,31,0.12);
+    --favor:#3F7D53;
+    --pagar:#B24A36;
   }
   *{box-sizing:border-box;}
   body{
@@ -40,7 +40,7 @@
   .month-label{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:14px; text-transform:capitalize; color:var(--muted);}
 
   .saldo-panel{
-    padding:6px 0 20px; margin-bottom:8px; border-bottom:1px solid var(--line);
+    padding:16px; margin-bottom:14px; background:var(--input); border:1px solid var(--line); border-radius:12px;
   }
   .saldo-top{margin-bottom:2px;}
   .saldo-tag{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint);}
@@ -65,7 +65,9 @@
   .form-panel{
     padding:0 0 8px; margin-bottom:16px; display:none;
   }
-  .form-panel.open{display:block;}
+  .form-panel.open{
+    display:block; background:var(--input); border:1px solid var(--line); border-radius:12px; padding:16px;
+  }
   .tipo-toggle{display:flex; gap:6px; margin-bottom:16px;}
   .tipo-toggle button{
     flex:1; padding:9px; border-radius:7px; border:1px solid var(--line);
@@ -159,7 +161,7 @@
   }
   .year-label{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:15px;}
 
-  .dash-card{padding:16px 0; margin-bottom:8px; border-bottom:1px solid var(--line);}
+  .dash-card{padding:16px; margin-bottom:12px; background:var(--input); border:1px solid var(--line); border-radius:12px;}
   .dash-card-title{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); margin-bottom:14px;}
 
   .bar-chart{display:flex; align-items:flex-end; gap:6px; height:120px; margin-bottom:6px;}
@@ -178,11 +180,34 @@
   .rank-fill{height:100%; background:var(--amber); border-radius:2px;}
 
   .pend-banner{
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-    background:var(--amber-dim); border:1px solid var(--amber); border-radius:8px;
-
-    padding:12px 14px; margin-bottom:14px; font-size:12.5px;
+    display:flex; flex-direction:column; gap:8px;
+    background:var(--amber-dim); border:1px solid var(--amber); border-radius:10px;
+    padding:12px 14px; margin-bottom:14px; font-size:12.5px; cursor:pointer;
   }
+  .pend-banner-top{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .pend-item{display:flex; justify-content:space-between; align-items:center; background:var(--input); border-radius:7px; padding:7px 9px; font-size:11.5px;}
+
+  .segctrl{display:flex; background:var(--input); border:1px solid var(--line); border-radius:10px; padding:3px; margin-bottom:14px;}
+  .segctrl button{flex:1; border:none; background:none; padding:9px; border-radius:7px; font-size:12.5px; color:var(--muted); cursor:pointer; font-family:'IBM Plex Mono',monospace;}
+  .segctrl button.active{background:var(--amber-dim); color:var(--amber); font-weight:600;}
+
+  .month-summary{background:var(--input); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px;}
+  .dash-section-label{font-size:11px; font-weight:600; color:var(--text); margin:4px 0 8px; letter-spacing:.02em;}
+
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .stat-card{background:var(--bg); border:1px solid var(--line); border-left:3px solid var(--amber); border-radius:10px; padding:11px 12px;}
+  .stat-card .k-label{font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;}
+  .stat-num{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:18px; margin-top:4px;}
+  .stat-num.favor{color:var(--favor);} .stat-num.pagar{color:var(--pagar);}
+
+  .tilde-row{display:flex; align-items:flex-start; gap:9px; border:1px solid var(--amber); background:var(--amber-dim); border-radius:10px; padding:11px 12px; margin:12px 0; font-size:11px; color:var(--muted); cursor:pointer;}
+  .tilde-row input{margin-top:2px; width:auto; accent-color:var(--amber);}
+  .tilde-row b{color:var(--text); font-size:12px;}
+  .tilde-chip{border:1px solid var(--line); background:var(--input); border-radius:20px; padding:2px 8px; font-size:9.5px; cursor:pointer; color:var(--muted); white-space:nowrap; margin-top:4px;}
+  .tilde-chip.on{background:var(--amber-dim); color:var(--amber); border-color:var(--amber);}
+
+  .dash-trend-title{font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); font-weight:600; margin-bottom:10px;}
+
 </style>
 </head>
 <body>
@@ -195,25 +220,9 @@ const ALICUOTAS = [21, 10.5, 27, 0];
 const TIPOS_COMPROBANTE = ['A','B','C','NC','SF'];
 const TIPO_COMPROBANTE_LABEL = {A:'Factura A', B:'Factura B', C:'Factura C', NC:'Nota de crédito', SF:'Sin factura'};
 const CATEGORIAS = {
-  venta: [
-    {n:'Asesoramiento', c:true},
-    {n:'Control de plagas', c:true},
-    {n:'Extracción de petróleo y gas', c:true},
-    {n:'Otro', c:true}
-  ],
-  compra: [
-    {n:'Casa', c:false},
-    {n:'Alimento e higiene', c:false},
-    {n:'Transporte', c:true},
-    {n:'Bienestar', c:false},
-    {n:'Educación', c:false},
-    {n:'Otro', c:false}
-  ]
+  venta: ['Asesoramiento','Control de plagas','Extracción de petróleo y gas','Otro'],
+  compra: ['Casa','Alimento e higiene','Transporte','Bienestar','Educación','Impuestos','Otro']
 };
-function categoriaDefaultComputa(tipo, nombreCategoria){
-  const cat = (CATEGORIAS[tipo] || []).find(c => c.n === nombreCategoria);
-  return cat ? cat.c : true;
-}
 const emptyDraft = () => ({
   fecha: new Date().toISOString().slice(0,10),
   contraparte:'', cuit:'', numeroComprobante:'', tipoComprobante:'A',
@@ -245,11 +254,12 @@ let state = {
   monthKey: currentMonthKey(),
   entries: [],
   formOpen: false,
-  tipo: 'venta',
+  tipo: 'compra', // por defecto: es el uso más frecuente
   loading: true,
   draft: emptyDraft(),
   view: 'mes', // 'mes' | 'dashboard'
   dashYear: new Date().getFullYear(),
+  dashLens: 'arca', // 'arca' | 'personal'
   dashLoading: false,
   allMonths: {},
   upload: null // {thumb, status: 'analyzing'|'done'|'error', errorMsg}
@@ -266,6 +276,63 @@ function shiftMonth(key, delta){
 }
 function fmtMoney(n){
   return '$' + n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+const CATEGORY_COLORS = ['#C97C1F', '#5B7C99', '#8B6B8F', '#8A7A6B', '#5E8A82', '#B08D57', '#A0596B'];
+
+function drawCharts(){
+  if(!window.__chartData) return;
+  const pieHost = document.getElementById('pieCanvas');
+  if(pieHost && window.__chartData.pie) pieHost.outerHTML = svgDonut(window.__chartData.pie);
+  const barHost = document.getElementById('barCanvas');
+  if(barHost && window.__chartData.bar) barHost.outerHTML = svgGroupedBars(window.__chartData.bar);
+}
+
+function svgDonut(d){
+  const total = d.data.reduce((s,v)=>s+v,0) || 1;
+  const R = 46, CX = 55, CY = 55, STROKE = 16;
+  const CIRC = 2 * Math.PI * R;
+  let acc = 0;
+  const segs = d.data.map((v,i) => {
+    const frac = v/total;
+    const dash = frac * CIRC;
+    const gap = CIRC - dash;
+    const offset = -acc * CIRC;
+    acc += frac;
+    return `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="${d.colors[i]}" stroke-width="${STROKE}"
+      stroke-dasharray="${dash} ${gap}" stroke-dashoffset="${offset}" transform="rotate(-90 ${CX} ${CY})">
+      <title>${d.labels[i]}: ${fmtMoney(d.data[i])}</title>
+    </circle>`;
+  }).join('');
+  return `<svg id="pieCanvas" viewBox="0 0 110 110" width="100%" height="100%">${segs}</svg>`;
+}
+
+function svgGroupedBars(d){
+  const W = 320, H = 150, PAD_B = 18, PAD_T = 4;
+  const maxVal = Math.max(1, ...d.venta, ...d.compra);
+  const n = d.labels.length;
+  const colW = W / n;
+  const barW = Math.min(7, colW * 0.32);
+  const usableH = H - PAD_B - PAD_T;
+  let bars = '';
+  for(let i=0;i<n;i++){
+    const x0 = i*colW + colW/2;
+    const hV = (d.venta[i]/maxVal) * usableH;
+    const hC = (d.compra[i]/maxVal) * usableH;
+    const yV = H - PAD_B - hV;
+    const yC = H - PAD_B - hC;
+    bars += `<rect x="${x0-barW-1}" y="${yV}" width="${barW}" height="${Math.max(hV,1)}" rx="2" fill="#3F7D53"><title>${d.labels[i]} · ${d.labelVenta}: ${fmtMoney(d.venta[i])}</title></rect>`;
+    bars += `<rect x="${x0+1}" y="${yC}" width="${barW}" height="${Math.max(hC,1)}" rx="2" fill="#B24A36"><title>${d.labels[i]} · ${d.labelCompra}: ${fmtMoney(d.compra[i])}</title></rect>`;
+    bars += `<text x="${x0}" y="${H-4}" font-size="7.5" fill="#9CA1A7" text-anchor="middle" font-family="IBM Plex Mono, monospace">${d.labels[i]}</text>`;
+  }
+  bars += `<line x1="0" y1="${H-PAD_B}" x2="${W}" y2="${H-PAD_B}" stroke="#E1E4E8" stroke-width="1"/>`;
+  return `
+    <svg id="barCanvas" viewBox="0 0 ${W} ${H}" width="100%" height="100%">${bars}</svg>
+    <div class="gauge-labels" style="margin-top:6px;">
+      <span><span style="color:#3F7D53;">●</span> ${d.labelVenta}</span>
+      <span><span style="color:#B24A36;">●</span> ${d.labelCompra}</span>
+    </div>
+  `;
 }
 
 async function apiFetch(url, options){
@@ -344,6 +411,29 @@ async function loadDashboard(){
   render();
 }
 
+function scanCleanup(ctx, width, height){
+  const imgData = ctx.getImageData(0, 0, width, height);
+  const d = imgData.data;
+  const n = width * height;
+  const gray = new Uint8ClampedArray(n);
+  let min = 255, max = 0;
+  for(let i=0, p=0; i<d.length; i+=4, p++){
+    const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+    gray[p] = g;
+    if(g < min) min = g;
+    if(g > max) max = g;
+  }
+  const range = Math.max(1, max - min);
+  for(let i=0, p=0; i<d.length; i+=4, p++){
+    let v = ((gray[p] - min) / range) * 255; // estira el contraste a todo el rango
+    v = ((v/255 - 0.5) * 1.4 + 0.5) * 255; // curva extra: acentúa texto contra el fondo
+    v = v > 210 ? 255 : v * (255/210); // aplana los blancos: "quita" el fondo, deja el papel limpio
+    v = Math.max(0, Math.min(255, v));
+    d[i] = d[i+1] = d[i+2] = v;
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
 function resizeImage(file, maxDim = 900, quality = 0.7){
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -359,8 +449,10 @@ function resizeImage(file, maxDim = 900, quality = 0.7){
         }
         const canvas = document.createElement('canvas');
         canvas.width = width; canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
         try{
+          scanCleanup(ctx, width, height); // blanco y negro prolijo, tipo app de escaneo
           const dataUrl = canvas.toDataURL('image/jpeg', quality);
           resolve(dataUrl);
         }catch(e){
@@ -404,7 +496,7 @@ async function attachPhoto(file){
     }
 
     state.tipo = parsed.tipo === 'compra' ? 'compra' : 'venta';
-    const catValida = CATEGORIAS[state.tipo].some(c => c.n === parsed.categoria) ? parsed.categoria : '';
+    const catValida = CATEGORIAS[state.tipo].includes(parsed.categoria) ? parsed.categoria : '';
     const netos = {21:{neto:'',iva:''}, '10.5':{neto:'',iva:''}, 27:{neto:'',iva:''}, 0:{neto:'',iva:''}};
     if(parsed.netos && typeof parsed.netos === 'object'){
       [21, '10.5', 27, 0].forEach(rate => {
@@ -436,7 +528,7 @@ async function attachPhoto(file){
       otrosTributos: parsed.otrosTributos ?? '',
       total: parsed.total ?? '',
       categoria: catValida,
-      computaIVA: catValida ? categoriaDefaultComputa(state.tipo, catValida) : true,
+      computaIVA: true,
       dudosos: Array.isArray(parsed.dudosos) ? parsed.dudosos : []
     };
     state.upload.status = 'done';
@@ -534,6 +626,7 @@ function render(){
 
   if(state.view === 'mes') attachMesEvents();
   else attachDashboardEvents();
+  drawCharts();
 }
 
 function renderMesHTML(){
@@ -636,7 +729,7 @@ function renderMesHTML(){
         <label>Categoría ${isDoubt('categoria')?'<span class="doubt-flag">●</span>':''}</label>
         <select id="f_categoria">
           <option value="">— Elegir —</option>
-          ${CATEGORIAS[state.tipo].map(c => `<option value="${c.n}" ${c.n===d.categoria?'selected':''}>${c.n}</option>`).join('')}
+          ${CATEGORIAS[state.tipo].map(c => `<option value="${c}" ${c===d.categoria?'selected':''}>${c}</option>`).join('')}
         </select>
       </div>
       ${sf ? `
@@ -701,9 +794,9 @@ function renderMesHTML(){
           <input type="number" step="0.01" id="f_total" placeholder="0.00" value="${d.total}">
         </div>
       </div>
-      <label class="checkbox-row">
+      <label class="tilde-row">
         <input type="checkbox" id="f_computaIVA" ${d.computaIVA ? 'checked' : ''}>
-        <span>Computa crédito/débito fiscal de IVA (afecta el saldo)</span>
+        <span><b>Computa ARCA</b><br>Marcalo si este comprobante entra en el Libro IVA / ARCA</span>
       </label>
       ${(() => {
         const neto = netosTotal(d.netos), total = parseFloat(d.total)||0;
@@ -724,7 +817,10 @@ function renderMesHTML(){
       <button class="cancel-btn" id="cancelEntry">Cancelar</button>
     </div>
 
-    <div class="section-title">Comprobantes del mes (${state.entries.length})</div>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div class="section-title" style="margin-bottom:0;">Comprobantes del mes (${state.entries.length})</div>
+      ${state.entries.length > 0 ? `<button class="cancel-btn" style="width:auto; margin-top:0; padding:6px 10px;" id="exportCsv">⬇ Excel</button>` : ''}
+    </div>
     ${state.loading ? '<div class="empty">Cargando...</div>' : (sorted.length === 0 ? '<div class="empty">Todavía no cargaste comprobantes este mes.</div>' : sorted.map(e => `
       <div class="entry">
         <div class="entry-left">
@@ -732,7 +828,7 @@ function renderMesHTML(){
           ${e.foto && e.foto !== 'PDF' ? `<img src="${e.foto}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;flex-shrink:0;">` : (e.foto === 'PDF' ? '<div style="width:32px;height:32px;border-radius:6px;background:var(--input);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--muted);flex-shrink:0;">PDF</div>' : '')}
           <div class="entry-info">
             <div class="entry-name">${e.contraparte || '(sin nombre)'}${e.dudoso ? '<span class="doubt-dot"></span>' : ''}</div>
-            <div class="entry-meta">${e.fecha} · ${TIPO_COMPROBANTE_LABEL[e.tipoComprobante] || 'Factura A'}${e.tipoComprobante!=='SF' ? ' · ' + (e.alicuota != null ? e.alicuota + '%' : (e.netos ? Object.keys(e.netos).length + ' alícuotas' : '')) : ''} · ${fmtMoney(e.neto)}${e.categoria ? ' · ' + e.categoria : ''}${e.computaIVA===false ? ' · sin crédito fiscal' : ''}${e.cargadoPor ? ' · cargó ' + e.cargadoPor : ''}</div>
+            <div class="entry-meta">${e.fecha} · ${TIPO_COMPROBANTE_LABEL[e.tipoComprobante] || 'Factura A'}${e.tipoComprobante!=='SF' ? ' · ' + (e.alicuota != null ? e.alicuota + '%' : (e.netos ? Object.keys(e.netos).length + ' alícuotas' : '')) : ''} · ${fmtMoney(e.neto)}${e.categoria ? ' · ' + e.categoria : ''}${e.cargadoPor ? ' · cargó ' + e.cargadoPor : ''}</div>
           </div>
         </div>
         <div class="entry-right">
@@ -740,6 +836,7 @@ function renderMesHTML(){
             <div class="entry-amount">${e.tipoComprobante==='SF' ? fmtMoney(e.neto) : 'IVA ' + fmtMoney(e.iva)}</div>
             ${e.percepcionIVA ? `<div class="entry-meta">perc. IVA ${fmtMoney(e.percepcionIVA)}</div>` : ''}
             ${e.percepcionIIBB ? `<div class="entry-meta">perc. IIBB ${fmtMoney(e.percepcionIIBB)}</div>` : ''}
+            ${e.tipoComprobante!=='SF' ? `<button class="tilde-chip ${e.computaIVA!==false?'on':'off'}" data-id="${e.id}" data-toggle-arca="1">${e.computaIVA!==false?'✓ ARCA':'No ARCA'}</button>` : ''}
           </div>
           <button class="entry-del" data-id="${e.id}">✕</button>
         </div>
@@ -754,35 +851,45 @@ function renderDashboardHTML(){
   }
   const allMonths = state.allMonths || {};
   const year = state.dashYear;
+  const lens = state.dashLens;
   const monthKeysOfYear = MONTH_NAMES.map((_,i) => year + '-' + String(i+1).padStart(2,'0'));
   const entriesOfYear = monthKeysOfYear.flatMap(k => allMonths[k] || []);
+  const entriesLens = lens === 'arca' ? entriesOfYear.filter(e => e.computaIVA !== false) : entriesOfYear;
 
-  const t = calcTotals(entriesOfYear);
+  const t = calcTotals(entriesOfYear); // calcTotals ya respeta el tilde internamente, siempre
   const isFavor = t.saldo <= 0;
 
-  // Gasto/facturado por mes (flujo de fondos completo, no solo lo fiscal)
+  function sumaIG(entries){
+    let facturado=0, gastado=0;
+    entries.forEach(e => { const m = montoFlujo(e); if(e.tipo==='venta') facturado += m; else gastado += m; });
+    return {facturado, gastado};
+  }
+  const ig = sumaIG(entriesLens);
+
+  // Serie mensual, respetando la pestaña activa
   const monthly = monthKeysOfYear.map(k => {
-    const es = allMonths[k] || [];
+    const es = (allMonths[k] || []).filter(e => lens==='arca' ? e.computaIVA !== false : true);
     let venta = 0, compra = 0;
-    es.forEach(e => { if(e.tipo === 'venta') venta += montoFlujo(e); else compra += montoFlujo(e); });
+    es.forEach(e => { const m = montoFlujo(e); if(e.tipo === 'venta') venta += m; else compra += m; });
     return {venta, compra};
   });
-  const maxMonthly = Math.max(1, ...monthly.map(m => Math.max(m.venta, m.compra)));
 
-  // Ranking por categoría (todas las entradas del año, negocio + vida)
+  // Categorías de gasto, respetando la pestaña activa
   const porCategoria = {};
-  entriesOfYear.forEach(e => {
+  entriesLens.filter(e => e.tipo === 'compra').forEach(e => {
     const cat = e.categoria || 'Sin categoría';
     porCategoria[cat] = (porCategoria[cat] || 0) + montoFlujo(e);
   });
-  const ranking = Object.entries(porCategoria).sort((a,b) => b[1]-a[1]);
-  const maxCat = Math.max(1, ...ranking.map(r => r[1]));
+  const gastoOrdenado = Object.entries(porCategoria).map(([cat,monto]) => ({cat,monto})).sort((a,b) => b.monto-a.monto);
+  const totalGasto = gastoOrdenado.reduce((s,c) => s+c.monto, 0);
 
   // Pendientes: comprobantes dudosos en todo el histórico
   const pendientes = Object.values(allMonths).flat().filter(e => e.dudoso).length;
 
-  const years = Array.from(new Set(Object.keys(allMonths).map(k => parseInt(k.slice(0,4))))).sort();
-  if(!years.includes(year)) years.push(year);
+  window.__chartData = {
+    pie: gastoOrdenado.length ? { labels: gastoOrdenado.map(c=>c.cat), data: gastoOrdenado.map(c=>c.monto), colors: gastoOrdenado.map((c,i)=>CATEGORY_COLORS[i % CATEGORY_COLORS.length]) } : null,
+    bar: { labels: MONTH_NAMES.map(n=>n.slice(0,3)), venta: monthly.map(m=>m.venta), compra: monthly.map(m=>m.compra), labelVenta: lens==='arca'?'Facturado':'Ingreso', labelCompra: lens==='arca'?'Recuperado':'Gasto' }
+  };
 
   return `
     <div class="year-nav">
@@ -791,59 +898,54 @@ function renderDashboardHTML(){
       <button id="nextYear">›</button>
     </div>
 
+    <div class="segctrl">
+      <button class="${lens==='arca'?'active':''}" id="lensArca">🏛️ ARCA</button>
+      <button class="${lens==='personal'?'active':''}" id="lensPersonal">Personal</button>
+    </div>
+
     ${pendientes > 0 ? `
     <div class="pend-banner">
-      <span>⚠ Tenés ${pendientes} comprobante${pendientes>1?'s':''} marcado${pendientes>1?'s':''} como dudoso${pendientes>1?'s':''} para revisar</span>
+      <div class="pend-banner-top">⚠ Tenés ${pendientes} comprobante${pendientes>1?'s':''} marcado${pendientes>1?'s':''} como dudoso${pendientes>1?'s':''} para revisar</div>
+      <button class="link-btn" style="padding:0; align-self:flex-start;" id="pendGoMes">→ Revisar en Mes</button>
     </div>` : ''}
 
-    <div class="dash-card">
-      <div class="dash-card-title">Fiscal · saldo IVA ${year}</div>
-      <div class="saldo-top">
-        <div class="saldo-tag">Acumulado</div>
-        <div class="saldo-value ${isFavor ? 'favor' : 'pagar'}" style="font-size:24px;">${fmtMoney(Math.abs(t.saldo))}</div>
-      </div>
-      <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px;">${isFavor ? 'A favor' : 'A pagar'}</div>
-      <div class="subrow" style="margin-top:0; padding-top:10px;">
-        <div>Débito (ventas)</div><span>${fmtMoney(t.debito)}</span>
-      </div>
-      <div class="subrow">
-        <div>Crédito (compras)</div><span>${fmtMoney(t.credito)}</span>
-      </div>
-      <div class="subrow">
-        <div>Percepciones IVA (pago a cuenta)</div><span>${fmtMoney(t.percepcionesIVA)}</span>
-      </div>
-      <div class="subrow">
-        <div>Percepciones IIBB acumuladas</div><span>${fmtMoney(t.percepcionesIIBB)}</span>
-      </div>
-    </div>
-
-    <div class="dash-card">
-      <div class="dash-card-title">Facturado vs. gastado por mes</div>
-      <div class="bar-chart">
-        ${monthly.map(m => `
-          <div class="bar-col">
-            <div class="bar-fill venta" style="height:${(m.venta/maxMonthly*100)}%" title="Facturado: ${fmtMoney(m.venta)}"></div>
-            <div class="bar-fill compra" style="height:${(m.compra/maxMonthly*100)}%" title="Gastado: ${fmtMoney(m.compra)}"></div>
+    <div class="month-summary">
+      ${lens === 'arca' ? `
+        <div class="dash-section-label">📘 Libro IVA (fiscal) · ${year}</div>
+        <div class="stat-grid" style="margin-bottom:14px;">
+          <div class="stat-card" style="border-left-color:${isFavor?'var(--favor)':'var(--pagar)'};">
+            <div class="k-label">${isFavor ? 'A favor' : 'A pagar'}</div>
+            <div class="stat-num ${isFavor ? 'favor' : 'pagar'}">${fmtMoney(Math.abs(t.saldo))}</div>
           </div>
-        `).join('')}
+          <div class="stat-card"><div class="k-label">Percepciones IIBB</div><div class="stat-num" style="font-size:16px;">${fmtMoney(t.percepcionesIIBB)}</div></div>
+        </div>
+      ` : ''}
+
+      <div class="dash-section-label">${lens==='arca' ? '💰 Facturado y recuperado' : '💰 Ingreso y gasto'}</div>
+      <div class="stat-grid" style="margin-bottom:16px;">
+        <div class="stat-card" style="border-left-color:var(--favor);"><div class="k-label">${lens==='arca'?'Facturado':'Ingreso'}</div><div class="stat-num favor">${fmtMoney(ig.facturado)}</div></div>
+        <div class="stat-card" style="border-left-color:var(--pagar);"><div class="k-label">${lens==='arca'?'Recuperado':'Gasto'}</div><div class="stat-num pagar">${fmtMoney(ig.gastado)}</div></div>
       </div>
-      <div class="bar-labels">
-        ${MONTH_NAMES.map(n => `<span>${n.slice(0,3)}</span>`).join('')}
+
+      <div class="dash-section-label">Gastos por categoría · ${year}</div>
+      ${gastoOrdenado.length === 0 ? '<div class="empty">Todavía no hay gastos cargados en este año.</div>' : `
+      <div style="display:flex; gap:16px; align-items:center;">
+        <div style="width:100px; height:100px; flex-shrink:0;"><svg id="pieCanvas"></svg></div>
+        <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+          ${gastoOrdenado.map((c,i) => `
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px;">
+              <span style="display:flex; align-items:center; gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:${CATEGORY_COLORS[i % CATEGORY_COLORS.length]};display:inline-block;"></span>${c.cat}</span>
+              <span style="color:var(--muted);">${fmtMoney(c.monto)} · ${Math.round(c.monto/totalGasto*100)}%</span>
+            </div>
+          `).join('')}
+        </div>
       </div>
-      <div class="gauge-labels" style="margin-top:10px;">
-        <span><span style="color:var(--favor);">●</span> Facturado</span>
-        <span><span style="color:var(--pagar);">●</span> Gastado</span>
-      </div>
+      `}
     </div>
 
     <div class="dash-card">
-      <div class="dash-card-title">Por categoría · ${year} (todo: negocio y vida)</div>
-      ${ranking.length === 0 ? '<div class="empty">Todavía no hay comprobantes cargados en este año.</div>' : ranking.map(([cat, monto]) => `
-        <div class="rank-row">
-          <div class="rank-top"><span class="cat">${cat}</span><span class="amt">${fmtMoney(Math.abs(monto))}</span></div>
-          <div class="rank-track"><div class="rank-fill" style="width:${(Math.abs(monto)/maxCat*100)}%"></div></div>
-        </div>
-      `).join('')}
+      <div class="dash-trend-title">Evolución mensual de ingresos vs egresos</div>
+      <div style="height:170px;"><svg id="barCanvas"></svg></div>
     </div>
   `;
 }
@@ -906,11 +1008,47 @@ function attachDashboardEvents(){
   const nextYear = document.getElementById('nextYear');
   if(prevYear) prevYear.onclick = () => { state.dashYear--; render(); };
   if(nextYear) nextYear.onclick = () => { state.dashYear++; render(); };
+
+  const lensArca = document.getElementById('lensArca');
+  const lensPersonal = document.getElementById('lensPersonal');
+  if(lensArca) lensArca.onclick = () => { state.dashLens = 'arca'; render(); };
+  if(lensPersonal) lensPersonal.onclick = () => { state.dashLens = 'personal'; render(); };
+
+  const pendGoMes = document.getElementById('pendGoMes');
+  if(pendGoMes) pendGoMes.onclick = () => { state.view = 'mes'; render(); };
+}
+
+function exportarExcel(){
+  const headers = ['Fecha','Tipo','Contraparte','Categoría','Neto','IVA','Total','Computa ARCA'];
+  const filas = state.entries.map(e => [
+    e.fecha,
+    e.tipo === 'venta' ? 'Venta' : 'Compra',
+    e.contraparte,
+    e.categoria || '',
+    e.neto.toFixed(2),
+    e.iva.toFixed(2),
+    (e.neto + e.iva).toFixed(2),
+    e.computaIVA !== false ? 'Sí' : 'No'
+  ]);
+  const csvEscape = (v) => /[",;\n]/.test(v) ? '"' + String(v).replace(/"/g,'""') + '"' : v;
+  const csv = [headers, ...filas].map(row => row.map(csvEscape).join(';')).join('\r\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'libro-iva-' + state.monthKey + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function attachMesEvents(){
   document.getElementById('prevMonth').onclick = () => { state.monthKey = shiftMonth(state.monthKey, -1); loadMonth(state.monthKey); };
   document.getElementById('nextMonth').onclick = () => { state.monthKey = shiftMonth(state.monthKey, 1); loadMonth(state.monthKey); };
+
+  const exportBtn = document.getElementById('exportCsv');
+  if(exportBtn) exportBtn.onclick = exportarExcel;
 
   document.getElementById('toggleForm').onclick = () => {
     state.formOpen = !state.formOpen;
@@ -925,7 +1063,7 @@ function attachMesEvents(){
     btn.onclick = () => {
       if(document.getElementById('f_fecha')) readDraftFromForm();
       state.tipo = btn.dataset.tipo;
-      if(!CATEGORIAS[state.tipo].some(c => c.n === state.draft.categoria)) state.draft.categoria = '';
+      if(!CATEGORIAS[state.tipo].includes(state.draft.categoria)) state.draft.categoria = '';
       state.formOpen = true;
       render();
     };
@@ -938,11 +1076,7 @@ function attachMesEvents(){
   if(tipoComprobanteSel) tipoComprobanteSel.addEventListener('change', () => { readDraftFromForm(); render(); });
 
   const categoriaSel = document.getElementById('f_categoria');
-  if(categoriaSel) categoriaSel.addEventListener('change', () => {
-    readDraftFromForm();
-    if(state.draft.categoria) state.draft.computaIVA = categoriaDefaultComputa(state.tipo, state.draft.categoria);
-    render();
-  });
+  if(categoriaSel) categoriaSel.addEventListener('change', () => { readDraftFromForm(); render(); });
 
   ['f_neto_sf','f_neto_simple','f_alicuotaSimple','f_percepcionIVA','f_percepcionIIBB','f_otrosTributos','f_total','f_computaIVA'].forEach(id => {
     const el = document.getElementById(id);
@@ -1015,6 +1149,16 @@ function attachMesEvents(){
   document.querySelectorAll('.entry-del').forEach(btn => {
     btn.onclick = async () => {
       state.entries = state.entries.filter(e => e.id !== btn.dataset.id);
+      await saveMonth();
+      render();
+    };
+  });
+
+  document.querySelectorAll('[data-toggle-arca]').forEach(btn => {
+    btn.onclick = async () => {
+      const entry = state.entries.find(e => e.id === btn.dataset.id);
+      if(!entry) return;
+      entry.computaIVA = entry.computaIVA === false ? true : false;
       await saveMonth();
       render();
     };
