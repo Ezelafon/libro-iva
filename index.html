@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Libro IVA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#1B1E20;
+    --panel:#232729;
+    --panel-2:#292E30;
+    --line:#33383A;
+    --text:#EDEAE3;
+    --muted:#8B9196;
+    --amber:#E8A33D;
+    --teal:#4FA88F;
+    --rust:#D9634B;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:'IBM Plex Mono', monospace;
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{max-width:520px; margin:0 auto; padding:18px 16px 60px;}
+
+  header{margin-bottom:16px;}
+  .eyebrow{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:4px;}
+  h1{font-family:'Space Grotesk',sans-serif; font-size:22px; font-weight:700; margin:0; letter-spacing:-.01em;}
+
+  .month-nav{display:flex; align-items:center; justify-content:space-between; margin:14px 0 10px;}
+  .month-nav button{
+    background:var(--panel); border:1px solid var(--line); color:var(--text);
+    width:32px;height:32px;border-radius:6px; font-size:16px; cursor:pointer;
+  }
+  .month-label{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:15px; text-transform:capitalize;}
+
+  .saldo-panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:18px; margin-bottom:14px;
+  }
+  .saldo-top{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;}
+  .saldo-tag{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted);}
+  .saldo-value{font-family:'Space Grotesk',sans-serif; font-size:30px; font-weight:700;}
+  .saldo-value.favor{color:var(--teal);}
+  .saldo-value.pagar{color:var(--rust);}
+
+  .gauge{position:relative; height:10px; border-radius:6px; background:var(--panel-2); overflow:hidden; margin-bottom:8px;}
+  .gauge-fill{position:absolute; top:0; bottom:0; border-radius:6px; transition:width .3s ease;}
+  .gauge-mid{position:absolute; top:-3px; bottom:-3px; width:2px; background:var(--line); left:50%;}
+  .gauge-labels{display:flex; justify-content:space-between; font-size:10.5px; color:var(--muted);}
+
+  .subrow{display:flex; justify-content:space-between; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); font-size:12.5px;}
+  .subrow div{color:var(--muted);}
+  .subrow span{color:var(--text); font-weight:500;}
+
+  .add-toggle{
+    width:100%; padding:12px; border-radius:10px; border:1px dashed var(--line);
+    background:transparent; color:var(--amber); font-family:'IBM Plex Mono',monospace;
+    font-size:13px; cursor:pointer; margin-bottom:14px;
+  }
+  .form-panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:16px; margin-bottom:14px; display:none;
+  }
+  .form-panel.open{display:block;}
+  .tipo-toggle{display:flex; gap:8px; margin-bottom:12px;}
+  .tipo-toggle button{
+    flex:1; padding:10px; border-radius:8px; border:1px solid var(--line);
+    background:var(--panel-2); color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:13px; cursor:pointer;
+  }
+  .tipo-toggle button.active[data-tipo="venta"]{background:rgba(79,168,143,0.18); color:var(--teal); border-color:var(--teal);}
+  .tipo-toggle button.active[data-tipo="compra"]{background:rgba(217,99,75,0.18); color:var(--rust); border-color:var(--rust);}
+
+  /* Upload area */
+  .upload-area{
+    border:1.5px dashed var(--line); border-radius:10px; padding:16px; text-align:center;
+    margin-bottom:14px; cursor:pointer; transition:border-color .2s;
+  }
+  .upload-area:hover{border-color:var(--amber);}
+  .upload-area .icon{font-size:22px; margin-bottom:6px;}
+  .upload-area .label{font-size:12.5px; color:var(--muted);}
+  .upload-thumb{display:flex; align-items:center; gap:10px; background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:14px;}
+  .upload-thumb img{width:48px;height:48px;object-fit:cover;border-radius:6px;}
+  .upload-thumb .status{font-size:12.5px; flex:1;}
+  .upload-thumb .status.analyzing{color:var(--amber);}
+  .upload-thumb .status.done{color:var(--teal);}
+  .upload-thumb .status.error{color:var(--rust);}
+  .upload-thumb button{background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;}
+  .spinner{display:inline-block; width:12px;height:12px; border:2px solid rgba(232,163,61,.3); border-top-color:var(--amber); border-radius:50%; animation:spin .7s linear infinite; margin-right:6px; vertical-align:-2px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .divider-or{text-align:center; font-size:11px; color:var(--muted); margin:10px 0; letter-spacing:.08em; text-transform:uppercase;}
+
+  .field{margin-bottom:10px;}
+  .field label{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); margin-bottom:4px; letter-spacing:.03em;}
+  .field label .doubt-flag{color:var(--amber); font-size:10.5px;}
+  .field input, .field select{
+    width:100%; padding:10px; border-radius:8px; border:1px solid var(--line);
+    background:var(--panel-2); color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:14px;
+  }
+  .field.doubt input, .field.doubt select{border-color:var(--amber); background:rgba(232,163,61,0.08);}
+  .row2{display:flex; gap:10px;}
+  .row2 .field{flex:1;}
+
+  .save-btn{
+    width:100%; padding:12px; border-radius:8px; border:none;
+    background:var(--amber); color:#1B1E20; font-weight:600; font-family:'Space Grotesk',sans-serif;
+    font-size:14px; cursor:pointer; margin-top:4px;
+  }
+  .save-btn:disabled{opacity:.6;}
+  .cancel-btn{
+    width:100%; padding:10px; border-radius:8px; border:1px solid var(--line);
+    background:transparent; color:var(--muted); font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px; cursor:pointer; margin-top:8px;
+  }
+
+  .section-title{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin:18px 0 8px;}
+  .entry{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:12px 14px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;
+    gap:10px;
+  }
+  .entry-left{display:flex; align-items:center; gap:10px; min-width:0;}
+  .tipo-dot{width:8px;height:8px;border-radius:50%; flex-shrink:0;}
+  .tipo-dot.venta{background:var(--teal);}
+  .tipo-dot.compra{background:var(--rust);}
+  .entry-info{min-width:0;}
+  .entry-name{font-size:13.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .entry-meta{font-size:11px; color:var(--muted); margin-top:2px;}
+  .doubt-dot{display:inline-block; width:6px;height:6px;border-radius:50%; background:var(--amber); margin-left:6px;}
+  .entry-right{text-align:right; flex-shrink:0; display:flex; align-items:center;}
+  .entry-amount{font-size:14px; font-weight:600;}
+  .entry-del{background:none; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:2px 4px; margin-left:6px;}
+
+  .empty{text-align:center; padding:30px 10px; color:var(--muted); font-size:13px;}
+  ::placeholder{color:#5C6266;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<input type="file" id="fileInput" accept="image/*" capture="environment" style="display:none;">
+
+<script>
+const MONTH_NAMES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const ALICUOTAS = [21, 10.5, 27, 0];
+const emptyDraft = () => ({fecha: new Date().toISOString().slice(0,10), contraparte:'', neto:'', alicuota:21, percepcion:'', dudosos:[]});
+
+let state = {
+  monthKey: currentMonthKey(),
+  entries: [],
+  formOpen: false,
+  tipo: 'venta',
+  loading: true,
+  draft: emptyDraft(),
+  upload: null // {thumb, status: 'analyzing'|'done'|'error', errorMsg}
+};
+
+function currentMonthKey(){
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0');
+}
+function shiftMonth(key, delta){
+  const [y,m] = key.split('-').map(Number);
+  const d = new Date(y, m-1+delta, 1);
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0');
+}
+function fmtMoney(n){
+  return '$' + n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+async function loadMonth(key){
+  state.loading = true;
+  render();
+  try{
+    const raw = localStorage.getItem('entries:' + key);
+    state.entries = raw ? JSON.parse(raw) : [];
+  }catch(e){
+    state.entries = [];
+  }
+  state.loading = false;
+  render();
+}
+async function saveMonth(){
+  try{
+    localStorage.setItem('entries:' + state.monthKey, JSON.stringify(state.entries));
+  }catch(e){ console.error('Error guardando', e); }
+}
+function calcTotals(entries){
+  let debito = 0, credito = 0, percepciones = 0;
+  entries.forEach(e => {
+    if(e.tipo === 'venta') debito += e.iva;
+    else credito += e.iva;
+    percepciones += (e.percepcion || 0);
+  });
+  return {debito, credito, saldo: debito - credito, percepciones};
+}
+
+function resizeImage(file, maxDim = 900, quality = 0.7){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('No se pudo procesar la imagen'));
+      img.onload = () => {
+        let {width, height} = img;
+        if(width > maxDim || height > maxDim){
+          if(width > height){ height = Math.round(height * maxDim / width); width = maxDim; }
+          else { width = Math.round(width * maxDim / height); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        try{
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          resolve(dataUrl);
+        }catch(e){
+          reject(new Error('No se pudo comprimir la imagen'));
+        }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function fileToBase64(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function attachPhoto(file){
+  try{
+    const thumb = await resizeImage(file);
+    state.upload = {thumb, status: 'analyzing'};
+    state.formOpen = true;
+    render();
+
+    const base64 = await fileToBase64(file);
+    const response = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ imageBase64: base64, mediaType: file.type || 'image/jpeg' })
+    });
+    const parsed = await response.json();
+
+    if(!response.ok || parsed.error){
+      throw new Error(parsed.error || 'No se pudo leer el comprobante');
+    }
+
+    state.tipo = parsed.tipo === 'compra' ? 'compra' : 'venta';
+    state.draft = {
+      fecha: parsed.fecha || emptyDraft().fecha,
+      contraparte: parsed.contraparte || '',
+      neto: parsed.neto ?? '',
+      alicuota: parsed.alicuota ?? 21,
+      percepcion: parsed.percepcion ?? '',
+      dudosos: Array.isArray(parsed.dudosos) ? parsed.dudosos : []
+    };
+    state.upload.status = 'done';
+  }catch(e){
+    console.error(e);
+    if(state.upload) state.upload.status = 'error';
+    state.uploadError = e.message || 'No se pudo leer el comprobante. Completá los campos a mano.';
+  }
+  render();
+}
+
+function render(){
+  const app = document.getElementById('app');
+  const [y,m] = state.monthKey.split('-').map(Number);
+  const monthLabel = MONTH_NAMES[m-1] + ' ' + y;
+  const t = calcTotals(state.entries);
+  const isFavor = t.saldo <= 0;
+  const debitoPct = (t.debito / (t.debito + t.credito || 1)) * 100;
+  const sorted = [...state.entries].sort((a,b)=> (b.fecha||'').localeCompare(a.fecha||''));
+  const d = state.draft;
+  const isDoubt = (f) => d.dudosos.includes(f);
+
+  app.innerHTML = `
+    <header>
+      <div class="eyebrow">Libro IVA</div>
+      <h1>Parciales mensuales</h1>
+    </header>
+
+    <div class="month-nav">
+      <button id="prevMonth">‹</button>
+      <div class="month-label">${monthLabel}</div>
+      <button id="nextMonth">›</button>
+    </div>
+
+    <div class="saldo-panel">
+      <div class="saldo-top">
+        <div class="saldo-tag">Saldo IVA del mes</div>
+        <div class="saldo-value ${isFavor ? 'favor' : 'pagar'}">${fmtMoney(Math.abs(t.saldo))}</div>
+      </div>
+      <div style="font-size:11.5px; color:var(--muted); margin-bottom:12px;">${isFavor ? 'A favor (crédito ≥ débito)' : 'A pagar (débito > crédito)'}</div>
+      <div class="gauge">
+        <div class="gauge-fill" style="left:0; width:${debitoPct}%; background:var(--teal);"></div>
+        <div class="gauge-fill" style="right:0; width:${100-debitoPct}%; background:var(--rust);"></div>
+        <div class="gauge-mid"></div>
+      </div>
+      <div class="gauge-labels">
+        <span>Débito (ventas) ${fmtMoney(t.debito)}</span>
+        <span>Crédito (compras) ${fmtMoney(t.credito)}</span>
+      </div>
+      <div class="subrow">
+        <div>Percepciones IIBB sufridas <span style="display:block;">(compensan contra IIBB, no IVA)</span></div>
+        <span>${fmtMoney(t.percepciones)}</span>
+      </div>
+    </div>
+
+    <button class="add-toggle" id="toggleForm">${state.formOpen ? '– Cerrar' : '+ Cargar comprobante'}</button>
+
+    <div class="form-panel ${state.formOpen ? 'open' : ''}" id="formPanel">
+      <div class="tipo-toggle">
+        <button data-tipo="venta" class="${state.tipo==='venta'?'active':''}">Venta</button>
+        <button data-tipo="compra" class="${state.tipo==='compra'?'active':''}">Compra</button>
+      </div>
+
+      ${!state.upload ? `
+        <div class="upload-area" id="uploadArea">
+          <div class="icon">📷</div>
+          <div class="label">Tocá para sacar foto o adjuntar el comprobante</div>
+        </div>
+        <div class="divider-or">o cargá los datos a mano</div>
+      ` : `
+        <div class="upload-thumb">
+          <img src="${state.upload.thumb}">
+          <div class="status ${state.upload.status}">
+            ${state.upload.status==='analyzing' ? '<span class="spinner"></span>Leyendo comprobante...' : ''}
+            ${state.upload.status==='done' ? 'Listo — revisá y confirmá los campos' : ''}
+            ${state.upload.status==='error' ? (state.uploadError || 'No se pudo leer, completá a mano') : ''}
+          </div>
+          <button id="retakePhoto">✕</button>
+        </div>
+      `}
+
+      <div class="field ${isDoubt('fecha')?'doubt':''}">
+        <label>Fecha ${isDoubt('fecha')?'<span class="doubt-flag">● a confirmar</span>':''}</label>
+        <input type="date" id="f_fecha" value="${d.fecha}">
+      </div>
+      <div class="field ${isDoubt('contraparte')?'doubt':''}">
+        <label>${state.tipo === 'venta' ? 'Cliente' : 'Proveedor'} / N° factura ${isDoubt('contraparte')?'<span class="doubt-flag">● a confirmar</span>':''}</label>
+        <input type="text" id="f_contraparte" placeholder="Ej: Empresa SRL - Fact. A-0001-00001234" value="${d.contraparte}">
+      </div>
+      <div class="row2">
+        <div class="field ${isDoubt('neto')?'doubt':''}">
+          <label>Neto gravado ${isDoubt('neto')?'<span class="doubt-flag">●</span>':''}</label>
+          <input type="number" step="0.01" id="f_neto" placeholder="0.00" value="${d.neto}">
+        </div>
+        <div class="field ${isDoubt('alicuota')?'doubt':''}">
+          <label>Alícuota ${isDoubt('alicuota')?'<span class="doubt-flag">●</span>':''}</label>
+          <select id="f_alicuota">
+            ${ALICUOTAS.map(a => `<option value="${a}" ${a==d.alicuota?'selected':''}>${a}%</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="field ${isDoubt('percepcion')?'doubt':''}">
+        <label>Percepción IIBB ${isDoubt('percepcion')?'<span class="doubt-flag">● a confirmar</span>':''}</label>
+        <input type="number" step="0.01" id="f_percepcion" placeholder="0.00" value="${d.percepcion}">
+      </div>
+
+      <button class="save-btn" id="saveEntry" ${state.upload && state.upload.status==='analyzing' ? 'disabled' : ''}>Confirmar y guardar</button>
+      <button class="cancel-btn" id="cancelEntry">Cancelar</button>
+    </div>
+
+    <div class="section-title">Comprobantes del mes (${state.entries.length})</div>
+    ${state.loading ? '<div class="empty">Cargando...</div>' : (sorted.length === 0 ? '<div class="empty">Todavía no cargaste comprobantes este mes.</div>' : sorted.map(e => `
+      <div class="entry">
+        <div class="entry-left">
+          <div class="tipo-dot ${e.tipo}"></div>
+          ${e.foto ? `<img src="${e.foto}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;flex-shrink:0;">` : ''}
+          <div class="entry-info">
+            <div class="entry-name">${e.contraparte || '(sin nombre)'}${e.dudoso ? '<span class="doubt-dot"></span>' : ''}</div>
+            <div class="entry-meta">${e.fecha} · ${e.alicuota}% · neto ${fmtMoney(e.neto)}</div>
+          </div>
+        </div>
+        <div class="entry-right">
+          <div>
+            <div class="entry-amount">IVA ${fmtMoney(e.iva)}</div>
+            ${e.percepcion ? `<div class="entry-meta">perc. ${fmtMoney(e.percepcion)}</div>` : ''}
+          </div>
+          <button class="entry-del" data-id="${e.id}">✕</button>
+        </div>
+      </div>
+    `).join(''))}
+  `;
+
+  attachEvents();
+}
+
+function readDraftFromForm(){
+  state.draft = {
+    fecha: document.getElementById('f_fecha').value,
+    contraparte: document.getElementById('f_contraparte').value,
+    neto: document.getElementById('f_neto').value,
+    alicuota: parseFloat(document.getElementById('f_alicuota').value),
+    percepcion: document.getElementById('f_percepcion').value,
+    dudosos: state.draft.dudosos
+  };
+}
+
+function attachEvents(){
+  document.getElementById('prevMonth').onclick = () => { state.monthKey = shiftMonth(state.monthKey, -1); loadMonth(state.monthKey); };
+  document.getElementById('nextMonth').onclick = () => { state.monthKey = shiftMonth(state.monthKey, 1); loadMonth(state.monthKey); };
+
+  document.getElementById('toggleForm').onclick = () => {
+    state.formOpen = !state.formOpen;
+    if(!state.formOpen){ state.upload = null; state.draft = emptyDraft(); }
+    render();
+  };
+
+  const cancelBtn = document.getElementById('cancelEntry');
+  if(cancelBtn) cancelBtn.onclick = () => { state.formOpen = false; state.upload = null; state.draft = emptyDraft(); render(); };
+
+  document.querySelectorAll('.tipo-toggle button').forEach(btn => {
+    btn.onclick = () => {
+      if(document.getElementById('f_fecha')) readDraftFromForm();
+      state.tipo = btn.dataset.tipo;
+      state.formOpen = true;
+      render();
+    };
+  });
+
+  const uploadArea = document.getElementById('uploadArea');
+  if(uploadArea) uploadArea.onclick = () => document.getElementById('fileInput').click();
+
+  const retake = document.getElementById('retakePhoto');
+  if(retake) retake.onclick = () => { state.upload = null; state.draft = emptyDraft(); render(); };
+
+  const saveBtn = document.getElementById('saveEntry');
+  if(saveBtn) saveBtn.onclick = async () => {
+    readDraftFromForm();
+    const neto = parseFloat(state.draft.neto) || 0;
+    const alicuota = state.draft.alicuota;
+    const percepcion = parseFloat(state.draft.percepcion) || 0;
+    const contraparte = state.draft.contraparte.trim();
+    const fecha = state.draft.fecha;
+
+    if(neto <= 0){ alert('Ingresá el neto gravado.'); return; }
+
+    const entry = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      tipo: state.tipo,
+      fecha, contraparte, neto, alicuota,
+      iva: Math.round(neto * alicuota) / 100,
+      percepcion,
+      dudoso: state.draft.dudosos.length > 0,
+      foto: state.upload ? state.upload.thumb : null
+    };
+    state.entries.push(entry);
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Guardando...';
+    await saveMonth();
+    state.formOpen = false;
+    state.upload = null;
+    state.draft = emptyDraft();
+    render();
+  };
+
+  document.querySelectorAll('.entry-del').forEach(btn => {
+    btn.onclick = async () => {
+      state.entries = state.entries.filter(e => e.id !== btn.dataset.id);
+      await saveMonth();
+      render();
+    };
+  });
+}
+
+document.getElementById('fileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(file) attachPhoto(file);
+  e.target.value = '';
+});
+
+loadMonth(state.monthKey);
+</script>
+</body>
+</html>
