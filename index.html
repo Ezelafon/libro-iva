@@ -182,7 +182,7 @@
 </head>
 <body>
 <div id="app"></div>
-<input type="file" id="fileInput" accept="image/*" capture="environment" style="display:none;">
+<input type="file" id="fileInput" accept="image/*,application/pdf,.pdf" style="display:none;">
 
 <script>
 const MONTH_NAMES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
@@ -212,9 +212,16 @@ function categoriaDefaultComputa(tipo, nombreCategoria){
 const emptyDraft = () => ({
   fecha: new Date().toISOString().slice(0,10),
   contraparte:'', cuit:'', numeroComprobante:'', tipoComprobante:'A',
-  neto:'', alicuota:21, percepcionIVA:'', percepcionIIBB:'', otrosTributos:'', total:'',
+  renglones: [{neto:'', alicuota:21}],
+  percepcionIVA:'', percepcionIIBB:'', otrosTributos:'', total:'',
   categoria:'', computaIVA:true, dudosos:[]
 });
+function renglonesNeto(renglones){
+  return (renglones||[]).reduce((s,r) => s + (parseFloat(r.neto)||0), 0);
+}
+function renglonesIVA(renglones){
+  return (renglones||[]).reduce((s,r) => s + Math.round((parseFloat(r.neto)||0) * r.alicuota) / 100, 0);
+}
 
 let state = {
   user: null,
@@ -362,16 +369,18 @@ function fileToBase64(file){
 
 async function attachPhoto(file){
   try{
-    const thumb = await resizeImage(file);
-    state.upload = {thumb, status: 'analyzing'};
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const thumb = isPdf ? 'PDF' : await resizeImage(file);
+    state.upload = {thumb, isPdf, status: 'analyzing'};
     state.formOpen = true;
     render();
 
     const base64 = await fileToBase64(file);
+    const mediaType = isPdf ? 'application/pdf' : (file.type || 'image/jpeg');
     const response = await fetch('/api/analyze', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ imageBase64: base64, mediaType: file.type || 'image/jpeg' })
+      body: JSON.stringify({ imageBase64: base64, mediaType, isPdf })
     });
     const parsed = await response.json();
 
@@ -381,14 +390,16 @@ async function attachPhoto(file){
 
     state.tipo = parsed.tipo === 'compra' ? 'compra' : 'venta';
     const catValida = CATEGORIAS[state.tipo].some(c => c.n === parsed.categoria) ? parsed.categoria : '';
+    const renglones = Array.isArray(parsed.renglones) && parsed.renglones.length
+      ? parsed.renglones.map(r => ({ neto: r.neto ?? '', alicuota: ALICUOTAS.includes(r.alicuota) ? r.alicuota : 21 }))
+      : [{ neto: parsed.neto ?? '', alicuota: ALICUOTAS.includes(parsed.alicuota) ? parsed.alicuota : 21 }];
     state.draft = {
       fecha: parsed.fecha || emptyDraft().fecha,
       contraparte: parsed.contraparte || '',
       cuit: parsed.cuit || '',
       numeroComprobante: parsed.numeroComprobante || '',
       tipoComprobante: TIPOS_COMPROBANTE.includes(parsed.tipoComprobante) ? parsed.tipoComprobante : 'A',
-      neto: parsed.neto ?? '',
-      alicuota: parsed.alicuota ?? 21,
+      renglones,
       percepcionIVA: parsed.percepcionIVA ?? '',
       percepcionIIBB: parsed.percepcionIIBB ?? '',
       otrosTributos: parsed.otrosTributos ?? '',
@@ -548,12 +559,14 @@ function renderMesHTML(){
       ${!state.upload ? `
         <div class="upload-area" id="uploadArea">
           <div class="icon">📷</div>
-          <div class="label">Tocá para sacar foto o adjuntar el comprobante</div>
+          <div class="label">Tocá para sacar foto, o elegir una imagen o PDF</div>
         </div>
         <div class="divider-or">o cargá los datos a mano</div>
       ` : `
         <div class="upload-thumb">
-          <img src="${state.upload.thumb}">
+          ${state.upload.isPdf
+            ? '<div style="width:48px;height:48px;border-radius:6px;background:var(--panel);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted);flex-shrink:0;">PDF</div>'
+            : `<img src="${state.upload.thumb}">`}
           <div class="status ${state.upload.status}">
             ${state.upload.status==='analyzing' ? '<span class="spinner"></span>Leyendo comprobante...' : ''}
             ${state.upload.status==='done' ? 'Listo — revisá y confirmá los campos' : ''}
@@ -595,19 +608,30 @@ function renderMesHTML(){
           ${CATEGORIAS[state.tipo].map(c => `<option value="${c.n}" ${c.n===d.categoria?'selected':''}>${c.n}</option>`).join('')}
         </select>
       </div>
-      <div class="row2">
-        <div class="field ${isDoubt('neto')?'doubt':''}">
-          <label>${sf ? 'Monto' : 'Neto gravado'} ${isDoubt('neto')?'<span class="doubt-flag">●</span>':''}</label>
-          <input type="number" step="0.01" id="f_neto" placeholder="0.00" value="${d.neto}">
-        </div>
-        ${!sf ? `
-        <div class="field ${isDoubt('alicuota')?'doubt':''}">
-          <label>Alícuota ${isDoubt('alicuota')?'<span class="doubt-flag">●</span>':''}</label>
-          <select id="f_alicuota">
-            ${ALICUOTAS.map(a => `<option value="${a}" ${a==d.alicuota?'selected':''}>${a}%</option>`).join('')}
-          </select>
-        </div>` : ''}
+      ${sf ? `
+      <div class="field ${isDoubt('neto')?'doubt':''}">
+        <label>Monto ${isDoubt('neto')?'<span class="doubt-flag">●</span>':''}</label>
+        <input type="number" step="0.01" id="f_neto_sf" placeholder="0.00" value="${d.renglones[0] ? d.renglones[0].neto : ''}">
       </div>
+      ` : `
+      <div class="field">
+        <label>Neto gravado por alícuota ${isDoubt('neto')?'<span class="doubt-flag">● a confirmar</span>':''}</label>
+      </div>
+      ${d.renglones.map((r, i) => `
+        <div class="row2" style="align-items:flex-end;">
+          <div class="field" style="margin-bottom:8px;">
+            <input type="number" step="0.01" class="f_renglon_neto" data-idx="${i}" placeholder="Neto 0.00" value="${r.neto}">
+          </div>
+          <div class="field" style="margin-bottom:8px; flex:0 0 90px;">
+            <select class="f_renglon_alicuota" data-idx="${i}">
+              ${ALICUOTAS.map(a => `<option value="${a}" ${a==r.alicuota?'selected':''}>${a}%</option>`).join('')}
+            </select>
+          </div>
+          ${d.renglones.length > 1 ? `<button class="cancel-btn renglon-del" data-idx="${i}" style="flex:0 0 34px; margin-bottom:8px; padding:10px 0;">✕</button>` : ''}
+        </div>
+      `).join('')}
+      <button type="button" class="cancel-btn" id="addRenglon" style="margin-bottom:12px;">+ Agregar otra alícuota</button>
+      `}
       ${!sf ? `
       <div class="row2">
         <div class="field ${isDoubt('percepcionIVA')?'doubt':''}">
@@ -634,9 +658,9 @@ function renderMesHTML(){
         <span>Computa crédito/débito fiscal de IVA (afecta el saldo)</span>
       </label>
       ${(() => {
-        const neto = parseFloat(d.neto)||0, alicuota = d.alicuota, total = parseFloat(d.total)||0;
+        const neto = renglonesNeto(d.renglones), total = parseFloat(d.total)||0;
         if(!total) return '';
-        const ivaCalc = Math.round(neto * alicuota) / 100;
+        const ivaCalc = renglonesIVA(d.renglones);
         const esperado = neto + ivaCalc + (parseFloat(d.percepcionIVA)||0) + (parseFloat(d.percepcionIIBB)||0) + (parseFloat(d.otrosTributos)||0);
         const diff = Math.abs(esperado - total);
         if(diff > 1){
@@ -657,10 +681,10 @@ function renderMesHTML(){
       <div class="entry">
         <div class="entry-left">
           <div class="tipo-dot ${e.tipo}"></div>
-          ${e.foto ? `<img src="${e.foto}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;flex-shrink:0;">` : ''}
+          ${e.foto && e.foto !== 'PDF' ? `<img src="${e.foto}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;flex-shrink:0;">` : (e.foto === 'PDF' ? '<div style="width:32px;height:32px;border-radius:6px;background:var(--panel-2);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--muted);flex-shrink:0;">PDF</div>' : '')}
           <div class="entry-info">
             <div class="entry-name">${e.contraparte || '(sin nombre)'}${e.dudoso ? '<span class="doubt-dot"></span>' : ''}</div>
-            <div class="entry-meta">${e.fecha} · ${TIPO_COMPROBANTE_LABEL[e.tipoComprobante] || 'Factura A'}${e.tipoComprobante!=='SF' ? ' · ' + e.alicuota + '%' : ''} · ${fmtMoney(e.neto)}${e.categoria ? ' · ' + e.categoria : ''}${e.computaIVA===false ? ' · sin crédito fiscal' : ''}${e.cargadoPor ? ' · cargó ' + e.cargadoPor : ''}</div>
+            <div class="entry-meta">${e.fecha} · ${TIPO_COMPROBANTE_LABEL[e.tipoComprobante] || 'Factura A'}${e.tipoComprobante!=='SF' ? ' · ' + (e.alicuota != null ? e.alicuota + '%' : (e.renglones ? e.renglones.length + ' alícuotas' : '')) : ''} · ${fmtMoney(e.neto)}${e.categoria ? ' · ' + e.categoria : ''}${e.computaIVA===false ? ' · sin crédito fiscal' : ''}${e.cargadoPor ? ' · cargó ' + e.cargadoPor : ''}</div>
           </div>
         </div>
         <div class="entry-right">
@@ -776,17 +800,31 @@ function renderDashboardHTML(){
   `;
 }
 
+function readRenglonesFromForm(){
+  const netoInputs = document.querySelectorAll('.f_renglon_neto');
+  if(netoInputs.length === 0) return state.draft.renglones; // formulario SF, no tocar
+  const renglones = [];
+  netoInputs.forEach(input => {
+    const idx = input.dataset.idx;
+    const alicuotaSel = document.querySelector(`.f_renglon_alicuota[data-idx="${idx}"]`);
+    renglones.push({ neto: input.value, alicuota: alicuotaSel ? parseFloat(alicuotaSel.value) : 21 });
+  });
+  return renglones;
+}
+
 function readDraftFromForm(){
   const val = (id, fallback='') => { const el = document.getElementById(id); return el ? el.value : fallback; };
   const sf = val('f_tipoComprobante') === 'SF';
+  const renglones = sf
+    ? [{ neto: val('f_neto_sf'), alicuota: 0 }]
+    : readRenglonesFromForm();
   state.draft = {
     fecha: val('f_fecha'),
     contraparte: val('f_contraparte'),
     cuit: sf ? '' : val('f_cuit'),
     numeroComprobante: sf ? '' : val('f_numeroComprobante'),
     tipoComprobante: val('f_tipoComprobante', 'A'),
-    neto: val('f_neto'),
-    alicuota: sf ? 0 : parseFloat(val('f_alicuota', '21')),
+    renglones,
     percepcionIVA: sf ? '' : val('f_percepcionIVA'),
     percepcionIIBB: sf ? '' : val('f_percepcionIIBB'),
     otrosTributos: sf ? '' : val('f_otrosTributos'),
@@ -840,9 +878,29 @@ function attachMesEvents(){
     render();
   });
 
-  ['f_neto','f_alicuota','f_percepcionIVA','f_percepcionIIBB','f_otrosTributos','f_total','f_computaIVA'].forEach(id => {
+  ['f_neto_sf','f_percepcionIVA','f_percepcionIIBB','f_otrosTributos','f_total','f_computaIVA'].forEach(id => {
     const el = document.getElementById(id);
     if(el) el.addEventListener('change', () => { readDraftFromForm(); render(); });
+  });
+
+  document.querySelectorAll('.f_renglon_neto, .f_renglon_alicuota').forEach(el => {
+    el.addEventListener('change', () => { readDraftFromForm(); render(); });
+  });
+
+  const addRenglon = document.getElementById('addRenglon');
+  if(addRenglon) addRenglon.onclick = () => {
+    readDraftFromForm();
+    state.draft.renglones.push({neto:'', alicuota:21});
+    render();
+  };
+
+  document.querySelectorAll('.renglon-del').forEach(btn => {
+    btn.onclick = () => {
+      readDraftFromForm();
+      const idx = parseInt(btn.dataset.idx);
+      state.draft.renglones.splice(idx, 1);
+      render();
+    };
   });
 
   const retake = document.getElementById('retakePhoto');
@@ -851,9 +909,12 @@ function attachMesEvents(){
   const saveBtn = document.getElementById('saveEntry');
   if(saveBtn) saveBtn.onclick = async () => {
     readDraftFromForm();
-    const neto = parseFloat(state.draft.neto) || 0;
     const sf = state.draft.tipoComprobante === 'SF';
-    const alicuota = sf ? 0 : state.draft.alicuota;
+    const renglonesLimpios = state.draft.renglones
+      .map(r => ({ neto: parseFloat(r.neto) || 0, alicuota: sf ? 0 : r.alicuota }))
+      .filter(r => r.neto > 0);
+    const neto = renglonesLimpios.reduce((s,r) => s + r.neto, 0);
+    const iva = sf ? 0 : renglonesLimpios.reduce((s,r) => s + Math.round(r.neto * r.alicuota) / 100, 0);
     const percepcionIVA = sf ? 0 : (parseFloat(state.draft.percepcionIVA) || 0);
     const percepcionIIBB = sf ? 0 : (parseFloat(state.draft.percepcionIIBB) || 0);
     const otrosTributos = sf ? 0 : (parseFloat(state.draft.otrosTributos) || 0);
@@ -861,7 +922,7 @@ function attachMesEvents(){
     const contraparte = state.draft.contraparte.trim();
     const fecha = state.draft.fecha;
 
-    if(neto <= 0){ alert(sf ? 'Ingresá el monto.' : 'Ingresá el neto gravado.'); return; }
+    if(neto <= 0 || renglonesLimpios.length === 0){ alert(sf ? 'Ingresá el monto.' : 'Ingresá el neto gravado.'); return; }
     if(!state.draft.categoria){ alert('Elegí una categoría.'); return; }
 
     const entry = {
@@ -871,8 +932,10 @@ function attachMesEvents(){
       numeroComprobante: state.draft.numeroComprobante.trim(),
       cuit: state.draft.cuit.trim(),
       categoria: state.draft.categoria,
-      fecha, contraparte, neto, alicuota,
-      iva: sf ? 0 : Math.round(neto * alicuota) / 100,
+      fecha, contraparte,
+      renglones: sf ? undefined : renglonesLimpios,
+      neto, iva,
+      alicuota: renglonesLimpios.length === 1 ? renglonesLimpios[0].alicuota : null,
       percepcionIVA, percepcionIIBB, otrosTributos, total,
       computaIVA: sf ? false : state.draft.computaIVA,
       dudoso: state.draft.dudosos.length > 0,
