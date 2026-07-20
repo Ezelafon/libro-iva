@@ -8,15 +8,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#1B1E20;
-    --panel:#232729;
-    --panel-2:#292E30;
-    --line:#33383A;
+    --bg:#17191A;
+    --line:#2A2C2E;
+    --line-soft:#212324;
+    --input:#1E2021;
     --text:#EDEAE3;
-    --muted:#8B9196;
+    --muted:#83898D;
+    --faint:#565B5E;
     --amber:#E8A33D;
-    --teal:#4FA88F;
-    --rust:#D9634B;
+    --amber-dim:rgba(232,163,61,0.12);
+    --favor:#7FB88A;
+    --pagar:#D9776A;
   }
   *{box-sizing:border-box;}
   body{
@@ -24,91 +26,89 @@
     font-family:'IBM Plex Mono', monospace;
     -webkit-font-smoothing:antialiased;
   }
-  #app{max-width:520px; margin:0 auto; padding:18px 16px 60px;}
+  #app{max-width:520px; margin:0 auto; padding:20px 18px 60px;}
 
-  header{margin-bottom:16px;}
-  .eyebrow{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:4px;}
-  h1{font-family:'Space Grotesk',sans-serif; font-size:22px; font-weight:700; margin:0; letter-spacing:-.01em;}
+  header{margin-bottom:18px;}
+  .eyebrow{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); margin-bottom:4px;}
+  h1{font-family:'Space Grotesk',sans-serif; font-size:21px; font-weight:600; margin:0; letter-spacing:-.01em;}
 
-  .month-nav{display:flex; align-items:center; justify-content:space-between; margin:14px 0 10px;}
+  .month-nav{display:flex; align-items:center; justify-content:space-between; margin:18px 0 14px;}
   .month-nav button{
-    background:var(--panel); border:1px solid var(--line); color:var(--text);
-    width:32px;height:32px;border-radius:6px; font-size:16px; cursor:pointer;
+    background:none; border:none; color:var(--muted);
+    width:28px;height:28px; font-size:17px; cursor:pointer;
   }
-  .month-label{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:15px; text-transform:capitalize;}
+  .month-label{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:14px; text-transform:capitalize; color:var(--muted);}
 
   .saldo-panel{
-    background:var(--panel); border:1px solid var(--line); border-radius:12px;
-    padding:18px; margin-bottom:14px;
+    padding:6px 0 20px; margin-bottom:8px; border-bottom:1px solid var(--line);
   }
-  .saldo-top{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;}
-  .saldo-tag{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted);}
-  .saldo-value{font-family:'Space Grotesk',sans-serif; font-size:30px; font-weight:700;}
-  .saldo-value.favor{color:var(--teal);}
-  .saldo-value.pagar{color:var(--rust);}
+  .saldo-top{margin-bottom:2px;}
+  .saldo-tag{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint);}
+  .saldo-value{font-family:'Space Grotesk',sans-serif; font-size:38px; font-weight:600; line-height:1.15; letter-spacing:-.01em;}
+  .saldo-value.favor{color:var(--favor);}
+  .saldo-value.pagar{color:var(--pagar);}
 
-  .gauge{position:relative; height:10px; border-radius:6px; background:var(--panel-2); overflow:hidden; margin-bottom:8px;}
-  .gauge-fill{position:absolute; top:0; bottom:0; border-radius:6px; transition:width .3s ease;}
-  .gauge-mid{position:absolute; top:-3px; bottom:-3px; width:2px; background:var(--line); left:50%;}
-  .gauge-labels{display:flex; justify-content:space-between; font-size:10.5px; color:var(--muted);}
+  .gauge{position:relative; height:3px; border-radius:2px; background:var(--line); overflow:hidden; margin:14px 0 8px;}
+  .gauge-fill{position:absolute; top:0; bottom:0; border-radius:2px; transition:width .3s ease; background:var(--muted);}
+  .gauge-mid{display:none;}
+  .gauge-labels{display:flex; justify-content:space-between; font-size:11px; color:var(--muted);}
 
-  .subrow{display:flex; justify-content:space-between; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); font-size:12.5px;}
+  .subrow{display:flex; justify-content:space-between; margin-top:10px; padding-top:10px; border-top:1px solid var(--line-soft); font-size:12.5px;}
   .subrow div{color:var(--muted);}
   .subrow span{color:var(--text); font-weight:500;}
 
   .add-toggle{
-    width:100%; padding:12px; border-radius:10px; border:1px dashed var(--line);
+    width:100%; padding:13px; border-radius:8px; border:1px solid var(--line);
     background:transparent; color:var(--amber); font-family:'IBM Plex Mono',monospace;
-    font-size:13px; cursor:pointer; margin-bottom:14px;
+    font-size:13px; cursor:pointer; margin-bottom:16px;
   }
   .form-panel{
-    background:var(--panel); border:1px solid var(--line); border-radius:12px;
-    padding:16px; margin-bottom:14px; display:none;
+    padding:0 0 8px; margin-bottom:16px; display:none;
   }
   .form-panel.open{display:block;}
-  .tipo-toggle{display:flex; gap:8px; margin-bottom:12px;}
+  .tipo-toggle{display:flex; gap:6px; margin-bottom:16px;}
   .tipo-toggle button{
-    flex:1; padding:10px; border-radius:8px; border:1px solid var(--line);
-    background:var(--panel-2); color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:13px; cursor:pointer;
+    flex:1; padding:9px; border-radius:7px; border:1px solid var(--line);
+    background:transparent; color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:12.5px; cursor:pointer;
   }
-  .tipo-toggle button.active[data-tipo="venta"]{background:rgba(79,168,143,0.18); color:var(--teal); border-color:var(--teal);}
-  .tipo-toggle button.active[data-tipo="compra"]{background:rgba(217,99,75,0.18); color:var(--rust); border-color:var(--rust);}
+  .tipo-toggle button.active{background:var(--amber-dim); color:var(--amber); border-color:var(--amber);}
 
   /* Upload area */
   .upload-area{
-    border:1.5px dashed var(--line); border-radius:10px; padding:16px; text-align:center;
-    margin-bottom:14px; cursor:pointer; transition:border-color .2s;
+    border:1px dashed var(--line); border-radius:8px; padding:16px; text-align:center;
+    margin-bottom:16px; cursor:pointer; transition:border-color .2s;
   }
   .upload-area:hover{border-color:var(--amber);}
-  .upload-area .icon{font-size:22px; margin-bottom:6px;}
+  .upload-area .icon{font-size:20px; margin-bottom:6px; opacity:.7;}
   .upload-area .label{font-size:12.5px; color:var(--muted);}
-  .upload-thumb{display:flex; align-items:center; gap:10px; background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:14px;}
-  .upload-thumb img{width:48px;height:48px;object-fit:cover;border-radius:6px;}
+  .upload-thumb{display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:8px; padding:10px; margin-bottom:16px;}
+  .upload-thumb img{width:44px;height:44px;object-fit:cover;border-radius:5px;}
   .upload-thumb .status{font-size:12.5px; flex:1;}
   .upload-thumb .status.analyzing{color:var(--amber);}
-  .upload-thumb .status.done{color:var(--teal);}
-  .upload-thumb .status.error{color:var(--rust);}
+  .upload-thumb .status.done{color:var(--favor);}
+  .upload-thumb .status.error{color:var(--pagar);}
   .upload-thumb button{background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;}
   .spinner{display:inline-block; width:12px;height:12px; border:2px solid rgba(232,163,61,.3); border-top-color:var(--amber); border-radius:50%; animation:spin .7s linear infinite; margin-right:6px; vertical-align:-2px;}
   @keyframes spin{to{transform:rotate(360deg);}}
 
-  .divider-or{text-align:center; font-size:11px; color:var(--muted); margin:10px 0; letter-spacing:.08em; text-transform:uppercase;}
+  .divider-or{text-align:center; font-size:11px; color:var(--faint); margin:12px 0; letter-spacing:.08em; text-transform:uppercase;}
 
-  .field{margin-bottom:10px;}
-  .field label{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); margin-bottom:4px; letter-spacing:.03em;}
+  .field{margin-bottom:12px;}
+  .field label{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); margin-bottom:5px; letter-spacing:.03em;}
   .field label .doubt-flag{color:var(--amber); font-size:10.5px;}
   .field input, .field select{
-    width:100%; padding:10px; border-radius:8px; border:1px solid var(--line);
-    background:var(--panel-2); color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:14px;
+    width:100%; padding:10px 0; border-radius:0; border:none; border-bottom:1px solid var(--line);
+    background:transparent; color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:14px;
   }
-  .field.doubt input, .field.doubt select{border-color:var(--amber); background:rgba(232,163,61,0.08);}
-  .row2{display:flex; gap:10px;}
+  .field input:focus, .field select:focus{outline:none; border-bottom-color:var(--amber);}
+  .field.doubt input, .field.doubt select{border-bottom-color:var(--amber);}
+  .row2{display:flex; gap:16px;}
   .row2 .field{flex:1;}
 
   .save-btn{
-    width:100%; padding:12px; border-radius:8px; border:none;
-    background:var(--amber); color:#1B1E20; font-weight:600; font-family:'Space Grotesk',sans-serif;
-    font-size:14px; cursor:pointer; margin-top:4px;
+    width:100%; padding:13px; border-radius:8px; border:none;
+    background:var(--amber); color:#17191A; font-weight:600; font-family:'Space Grotesk',sans-serif;
+    font-size:14px; cursor:pointer; margin-top:6px;
   }
   .save-btn:disabled{opacity:.6;}
   .cancel-btn{
@@ -116,66 +116,71 @@
     background:transparent; color:var(--muted); font-family:'IBM Plex Mono',monospace;
     font-size:12.5px; cursor:pointer; margin-top:8px;
   }
+  .link-btn{
+    background:none; border:none; color:var(--amber); font-family:'IBM Plex Mono',monospace;
+    font-size:12px; cursor:pointer; padding:4px 0; text-decoration:underline; text-underline-offset:3px;
+  }
 
-  .section-title{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin:18px 0 8px;}
+  .section-title{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); margin:22px 0 6px;}
   .entry{
-    background:var(--panel); border:1px solid var(--line); border-radius:10px;
-    padding:12px 14px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;
+    border-bottom:1px solid var(--line-soft);
+    padding:12px 0; margin-bottom:0; display:flex; justify-content:space-between; align-items:center;
     gap:10px;
   }
   .entry-left{display:flex; align-items:center; gap:10px; min-width:0;}
-  .tipo-dot{width:8px;height:8px;border-radius:50%; flex-shrink:0;}
-  .tipo-dot.venta{background:var(--teal);}
-  .tipo-dot.compra{background:var(--rust);}
+  .tipo-dot{width:5px;height:5px;border-radius:50%; flex-shrink:0; background:var(--muted);}
+  .tipo-dot.venta{background:var(--favor);}
+  .tipo-dot.compra{background:var(--pagar);}
   .entry-info{min-width:0;}
   .entry-name{font-size:13.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .entry-meta{font-size:11px; color:var(--muted); margin-top:2px;}
   .doubt-dot{display:inline-block; width:6px;height:6px;border-radius:50%; background:var(--amber); margin-left:6px;}
   .entry-right{text-align:right; flex-shrink:0; display:flex; align-items:center;}
   .entry-amount{font-size:14px; font-weight:600;}
-  .entry-del{background:none; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:2px 4px; margin-left:6px;}
+  .entry-del{background:none; border:none; color:var(--faint); font-size:16px; cursor:pointer; padding:2px 4px; margin-left:6px;}
 
   .empty{text-align:center; padding:30px 10px; color:var(--muted); font-size:13px;}
-  ::placeholder{color:#5C6266;}
+  ::placeholder{color:var(--faint);}
 
-  .view-tabs{display:flex; gap:8px; margin:14px 0;}
+  .view-tabs{display:flex; gap:0; margin:18px 0; border-bottom:1px solid var(--line);}
   .view-tabs button{
-    flex:1; padding:9px; border-radius:8px; border:1px solid var(--line);
-    background:var(--panel); color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:12.5px; cursor:pointer;
+    flex:1; padding:10px; border:none; border-bottom:2px solid transparent; margin-bottom:-1px;
+    background:transparent; color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:12.5px; cursor:pointer;
   }
-  .view-tabs button.active{background:var(--panel-2); color:var(--amber); border-color:var(--amber);}
+  .view-tabs button.active{color:var(--amber); border-bottom-color:var(--amber);}
 
-  .checkbox-row{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin:12px 0; cursor:pointer;}
+  .checkbox-row{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin:14px 0; cursor:pointer;}
   .checkbox-row input{width:auto; accent-color:var(--amber);}
 
-  .year-nav{display:flex; align-items:center; justify-content:space-between; margin:0 0 12px;}
+  .year-nav{display:flex; align-items:center; justify-content:space-between; margin:0 0 14px;}
   .year-nav button{
-    background:var(--panel); border:1px solid var(--line); color:var(--text);
-    width:32px;height:32px;border-radius:6px; font-size:16px; cursor:pointer;
+    background:none; border:none; color:var(--muted);
+    width:28px;height:28px; font-size:17px; cursor:pointer;
   }
   .year-label{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:15px;}
 
-  .dash-card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px;}
-  .dash-card-title{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:12px;}
+  .dash-card{padding:16px 0; margin-bottom:8px; border-bottom:1px solid var(--line);}
+  .dash-card-title{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); margin-bottom:14px;}
 
   .bar-chart{display:flex; align-items:flex-end; gap:6px; height:120px; margin-bottom:6px;}
   .bar-col{flex:1; display:flex; flex-direction:column-reverse; align-items:center; height:100%; gap:1px;}
-  .bar-fill{width:100%; border-radius:3px 3px 0 0; min-height:2px;}
-  .bar-fill.venta{background:var(--teal);}
-  .bar-fill.compra{background:var(--rust);}
+  .bar-fill{width:100%; border-radius:2px 2px 0 0; min-height:2px;}
+  .bar-fill.venta{background:var(--favor);}
+  .bar-fill.compra{background:var(--pagar);}
   .bar-labels{display:flex; gap:6px;}
   .bar-labels span{flex:1; text-align:center; font-size:9px; color:var(--muted); text-transform:capitalize;}
 
-  .rank-row{margin-bottom:10px;}
-  .rank-top{display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:4px;}
+  .rank-row{margin-bottom:12px;}
+  .rank-top{display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:5px;}
   .rank-top .cat{color:var(--text);}
   .rank-top .amt{color:var(--muted);}
-  .rank-track{height:6px; background:var(--panel-2); border-radius:4px; overflow:hidden;}
-  .rank-fill{height:100%; background:var(--amber); border-radius:4px;}
+  .rank-track{height:2px; background:var(--line); border-radius:2px; overflow:hidden;}
+  .rank-fill{height:100%; background:var(--amber); border-radius:2px;}
 
   .pend-banner{
     display:flex; align-items:center; justify-content:space-between; gap:10px;
-    background:rgba(232,163,61,0.1); border:1px solid var(--amber); border-radius:10px;
+    background:var(--amber-dim); border:1px solid var(--amber); border-radius:8px;
+
     padding:12px 14px; margin-bottom:14px; font-size:12.5px;
   }
 </style>
@@ -212,15 +217,19 @@ function categoriaDefaultComputa(tipo, nombreCategoria){
 const emptyDraft = () => ({
   fecha: new Date().toISOString().slice(0,10),
   contraparte:'', cuit:'', numeroComprobante:'', tipoComprobante:'A',
-  renglones: [{neto:'', alicuota:21}],
+  netos: {21:'', '10.5':'', 27:'', 0:''},
+  alicuotaSimple: 21, detalleAbierto: false,
   percepcionIVA:'', percepcionIIBB:'', otrosTributos:'', total:'',
   categoria:'', computaIVA:true, dudosos:[]
 });
-function renglonesNeto(renglones){
-  return (renglones||[]).reduce((s,r) => s + (parseFloat(r.neto)||0), 0);
+function netosActivos(netos){
+  return Object.entries(netos||{}).filter(([,v]) => (parseFloat(v)||0) > 0);
 }
-function renglonesIVA(renglones){
-  return (renglones||[]).reduce((s,r) => s + Math.round((parseFloat(r.neto)||0) * r.alicuota) / 100, 0);
+function netosTotal(netos){
+  return Object.values(netos||{}).reduce((s,v) => s + (parseFloat(v)||0), 0);
+}
+function netosIVA(netos){
+  return Object.entries(netos||{}).reduce((s,[rate,v]) => s + Math.round((parseFloat(v)||0) * parseFloat(rate)) / 100, 0);
 }
 
 let state = {
@@ -390,16 +399,25 @@ async function attachPhoto(file){
 
     state.tipo = parsed.tipo === 'compra' ? 'compra' : 'venta';
     const catValida = CATEGORIAS[state.tipo].some(c => c.n === parsed.categoria) ? parsed.categoria : '';
-    const renglones = Array.isArray(parsed.renglones) && parsed.renglones.length
-      ? parsed.renglones.map(r => ({ neto: r.neto ?? '', alicuota: ALICUOTAS.includes(r.alicuota) ? r.alicuota : 21 }))
-      : [{ neto: parsed.neto ?? '', alicuota: ALICUOTAS.includes(parsed.alicuota) ? parsed.alicuota : 21 }];
+    const netos = {21:'', '10.5':'', 27:'', 0:''};
+    if(parsed.netos && typeof parsed.netos === 'object'){
+      [21, '10.5', 27, 0].forEach(rate => { if(parsed.netos[rate]) netos[rate] = parsed.netos[rate]; });
+    } else if(Array.isArray(parsed.renglones)){
+      parsed.renglones.forEach(r => { if(ALICUOTAS.includes(r.alicuota) && r.neto) netos[r.alicuota] = r.neto; });
+    } else if(parsed.neto){
+      const rate = ALICUOTAS.includes(parsed.alicuota) ? parsed.alicuota : 21;
+      netos[rate] = parsed.neto;
+    }
+    const activos = netosActivos(netos);
     state.draft = {
       fecha: parsed.fecha || emptyDraft().fecha,
       contraparte: parsed.contraparte || '',
       cuit: parsed.cuit || '',
       numeroComprobante: parsed.numeroComprobante || '',
       tipoComprobante: TIPOS_COMPROBANTE.includes(parsed.tipoComprobante) ? parsed.tipoComprobante : 'A',
-      renglones,
+      netos,
+      alicuotaSimple: activos.length ? parseFloat(activos[0][0]) : 21,
+      detalleAbierto: activos.length > 1,
       percepcionIVA: parsed.percepcionIVA ?? '',
       percepcionIIBB: parsed.percepcionIIBB ?? '',
       otrosTributos: parsed.otrosTributos ?? '',
@@ -441,7 +459,7 @@ function render(){
           <label>Contraseña</label>
           <input type="password" id="f_password" autocomplete="current-password">
         </div>
-        ${state.authError ? `<div style="font-size:12px; color:var(--rust); margin-bottom:10px;">${state.authError}</div>` : ''}
+        ${state.authError ? `<div style="font-size:12px; color:var(--pagar); margin-bottom:10px;">${state.authError}</div>` : ''}
         <button class="save-btn" id="loginBtn">Entrar</button>
       </div>
     `;
@@ -530,8 +548,8 @@ function renderMesHTML(){
       </div>
       <div style="font-size:11.5px; color:var(--muted); margin-bottom:12px;">${isFavor ? 'A favor (crédito ≥ débito)' : 'A pagar (débito > crédito)'}</div>
       <div class="gauge">
-        <div class="gauge-fill" style="left:0; width:${debitoPct}%; background:var(--teal);"></div>
-        <div class="gauge-fill" style="right:0; width:${100-debitoPct}%; background:var(--rust);"></div>
+        <div class="gauge-fill" style="left:0; width:${debitoPct}%; background:var(--favor);"></div>
+        <div class="gauge-fill" style="right:0; width:${100-debitoPct}%; background:var(--pagar);"></div>
         <div class="gauge-mid"></div>
       </div>
       <div class="gauge-labels">
@@ -565,7 +583,7 @@ function renderMesHTML(){
       ` : `
         <div class="upload-thumb">
           ${state.upload.isPdf
-            ? '<div style="width:48px;height:48px;border-radius:6px;background:var(--panel);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted);flex-shrink:0;">PDF</div>'
+            ? '<div style="width:48px;height:48px;border-radius:6px;background:var(--input);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted);flex-shrink:0;">PDF</div>'
             : `<img src="${state.upload.thumb}">`}
           <div class="status ${state.upload.status}">
             ${state.upload.status==='analyzing' ? '<span class="spinner"></span>Leyendo comprobante...' : ''}
@@ -611,27 +629,36 @@ function renderMesHTML(){
       ${sf ? `
       <div class="field ${isDoubt('neto')?'doubt':''}">
         <label>Monto ${isDoubt('neto')?'<span class="doubt-flag">●</span>':''}</label>
-        <input type="number" step="0.01" id="f_neto_sf" placeholder="0.00" value="${d.renglones[0] ? d.renglones[0].neto : ''}">
+        <input type="number" step="0.01" id="f_neto_sf" placeholder="0.00" value="${d.netos[d.alicuotaSimple] ?? ''}">
       </div>
+      ` : (!d.detalleAbierto ? `
+      <div class="row2">
+        <div class="field ${isDoubt('neto')?'doubt':''}">
+          <label>Neto gravado ${isDoubt('neto')?'<span class="doubt-flag">●</span>':''}</label>
+          <input type="number" step="0.01" id="f_neto_simple" placeholder="0.00" value="${d.netos[d.alicuotaSimple] ?? ''}">
+        </div>
+        <div class="field ${isDoubt('alicuota')?'doubt':''}" style="flex:0 0 90px;">
+          <label>Alícuota ${isDoubt('alicuota')?'<span class="doubt-flag">●</span>':''}</label>
+          <select id="f_alicuotaSimple">
+            ${ALICUOTAS.map(a => `<option value="${a}" ${a==d.alicuotaSimple?'selected':''}>${a}%</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <button type="button" class="link-btn" id="toggleDetalle">+ Varias alícuotas en este comprobante</button>
       ` : `
       <div class="field">
         <label>Neto gravado por alícuota ${isDoubt('neto')?'<span class="doubt-flag">● a confirmar</span>':''}</label>
       </div>
-      ${d.renglones.map((r, i) => `
-        <div class="row2" style="align-items:flex-end;">
-          <div class="field" style="margin-bottom:8px;">
-            <input type="number" step="0.01" class="f_renglon_neto" data-idx="${i}" placeholder="Neto 0.00" value="${r.neto}">
+      ${ALICUOTAS.map(rate => `
+        <div class="row2">
+          <div class="field" style="flex:0 0 70px; color:var(--muted); font-size:13px; padding-top:10px;">${rate == 0 ? 'Exento' : rate + '%'}</div>
+          <div class="field">
+            <input type="number" step="0.01" class="f_neto_rate" data-rate="${rate}" placeholder="0.00" value="${d.netos[rate] ?? ''}">
           </div>
-          <div class="field" style="margin-bottom:8px; flex:0 0 90px;">
-            <select class="f_renglon_alicuota" data-idx="${i}">
-              ${ALICUOTAS.map(a => `<option value="${a}" ${a==r.alicuota?'selected':''}>${a}%</option>`).join('')}
-            </select>
-          </div>
-          ${d.renglones.length > 1 ? `<button class="cancel-btn renglon-del" data-idx="${i}" style="flex:0 0 34px; margin-bottom:8px; padding:10px 0;">✕</button>` : ''}
         </div>
       `).join('')}
-      <button type="button" class="cancel-btn" id="addRenglon" style="margin-bottom:12px;">+ Agregar otra alícuota</button>
-      `}
+      <button type="button" class="link-btn" id="toggleDetalle">− Ver menos</button>
+      `)}
       ${!sf ? `
       <div class="row2">
         <div class="field ${isDoubt('percepcionIVA')?'doubt':''}">
@@ -658,15 +685,15 @@ function renderMesHTML(){
         <span>Computa crédito/débito fiscal de IVA (afecta el saldo)</span>
       </label>
       ${(() => {
-        const neto = renglonesNeto(d.renglones), total = parseFloat(d.total)||0;
+        const neto = netosTotal(d.netos), total = parseFloat(d.total)||0;
         if(!total) return '';
-        const ivaCalc = renglonesIVA(d.renglones);
+        const ivaCalc = netosIVA(d.netos);
         const esperado = neto + ivaCalc + (parseFloat(d.percepcionIVA)||0) + (parseFloat(d.percepcionIIBB)||0) + (parseFloat(d.otrosTributos)||0);
         const diff = Math.abs(esperado - total);
         if(diff > 1){
-          return `<div style="font-size:11.5px; color:var(--rust); background:rgba(217,99,75,0.1); border:1px solid var(--rust); border-radius:8px; padding:8px 10px; margin:10px 0;">⚠ Los campos no cierran contra el total: calculado ${fmtMoney(esperado)} vs. total ${fmtMoney(total)}. Revisá antes de guardar.</div>`;
+          return `<div style="font-size:11.5px; color:var(--pagar); background:rgba(217,99,75,0.1); border:1px solid var(--pagar); border-radius:8px; padding:8px 10px; margin:10px 0;">⚠ Los campos no cierran contra el total: calculado ${fmtMoney(esperado)} vs. total ${fmtMoney(total)}. Revisá antes de guardar.</div>`;
         }
-        return `<div style="font-size:11.5px; color:var(--teal); margin:10px 0;">✓ Cierra contra el total</div>`;
+        return `<div style="font-size:11.5px; color:var(--favor); margin:10px 0;">✓ Cierra contra el total</div>`;
       })()}
       ` : `
       <div style="font-size:11.5px; color:var(--muted); margin:10px 0; line-height:1.5;">Sin factura: no genera crédito/débito fiscal de IVA. Se registra igual en el flujo de fondos por categoría.</div>
@@ -681,10 +708,10 @@ function renderMesHTML(){
       <div class="entry">
         <div class="entry-left">
           <div class="tipo-dot ${e.tipo}"></div>
-          ${e.foto && e.foto !== 'PDF' ? `<img src="${e.foto}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;flex-shrink:0;">` : (e.foto === 'PDF' ? '<div style="width:32px;height:32px;border-radius:6px;background:var(--panel-2);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--muted);flex-shrink:0;">PDF</div>' : '')}
+          ${e.foto && e.foto !== 'PDF' ? `<img src="${e.foto}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;flex-shrink:0;">` : (e.foto === 'PDF' ? '<div style="width:32px;height:32px;border-radius:6px;background:var(--input);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--muted);flex-shrink:0;">PDF</div>' : '')}
           <div class="entry-info">
             <div class="entry-name">${e.contraparte || '(sin nombre)'}${e.dudoso ? '<span class="doubt-dot"></span>' : ''}</div>
-            <div class="entry-meta">${e.fecha} · ${TIPO_COMPROBANTE_LABEL[e.tipoComprobante] || 'Factura A'}${e.tipoComprobante!=='SF' ? ' · ' + (e.alicuota != null ? e.alicuota + '%' : (e.renglones ? e.renglones.length + ' alícuotas' : '')) : ''} · ${fmtMoney(e.neto)}${e.categoria ? ' · ' + e.categoria : ''}${e.computaIVA===false ? ' · sin crédito fiscal' : ''}${e.cargadoPor ? ' · cargó ' + e.cargadoPor : ''}</div>
+            <div class="entry-meta">${e.fecha} · ${TIPO_COMPROBANTE_LABEL[e.tipoComprobante] || 'Factura A'}${e.tipoComprobante!=='SF' ? ' · ' + (e.alicuota != null ? e.alicuota + '%' : (e.netos ? Object.keys(e.netos).length + ' alícuotas' : '')) : ''} · ${fmtMoney(e.neto)}${e.categoria ? ' · ' + e.categoria : ''}${e.computaIVA===false ? ' · sin crédito fiscal' : ''}${e.cargadoPor ? ' · cargó ' + e.cargadoPor : ''}</div>
           </div>
         </div>
         <div class="entry-right">
@@ -783,8 +810,8 @@ function renderDashboardHTML(){
         ${MONTH_NAMES.map(n => `<span>${n.slice(0,3)}</span>`).join('')}
       </div>
       <div class="gauge-labels" style="margin-top:10px;">
-        <span><span style="color:var(--teal);">●</span> Facturado</span>
-        <span><span style="color:var(--rust);">●</span> Gastado</span>
+        <span><span style="color:var(--favor);">●</span> Facturado</span>
+        <span><span style="color:var(--pagar);">●</span> Gastado</span>
       </div>
     </div>
 
@@ -800,31 +827,45 @@ function renderDashboardHTML(){
   `;
 }
 
-function readRenglonesFromForm(){
-  const netoInputs = document.querySelectorAll('.f_renglon_neto');
-  if(netoInputs.length === 0) return state.draft.renglones; // formulario SF, no tocar
-  const renglones = [];
-  netoInputs.forEach(input => {
-    const idx = input.dataset.idx;
-    const alicuotaSel = document.querySelector(`.f_renglon_alicuota[data-idx="${idx}"]`);
-    renglones.push({ neto: input.value, alicuota: alicuotaSel ? parseFloat(alicuotaSel.value) : 21 });
-  });
-  return renglones;
+function readNetosFromForm(){
+  const netos = {...state.draft.netos};
+  const detalleInputs = document.querySelectorAll('.f_neto_rate');
+  if(detalleInputs.length > 0){
+    detalleInputs.forEach(input => { netos[input.dataset.rate] = input.value; });
+    return { netos, alicuotaSimple: state.draft.alicuotaSimple };
+  }
+  const simpleInput = document.getElementById('f_neto_simple');
+  const simpleSel = document.getElementById('f_alicuotaSimple');
+  if(simpleInput){
+    const rate = simpleSel ? parseFloat(simpleSel.value) : state.draft.alicuotaSimple;
+    // vista simple asume un solo renglón activo: limpiamos los demás casilleros
+    const cleared = {21:'', '10.5':'', 27:'', 0:''};
+    cleared[rate] = simpleInput.value;
+    return { netos: cleared, alicuotaSimple: rate };
+  }
+  return { netos, alicuotaSimple: state.draft.alicuotaSimple };
 }
 
 function readDraftFromForm(){
   const val = (id, fallback='') => { const el = document.getElementById(id); return el ? el.value : fallback; };
   const sf = val('f_tipoComprobante') === 'SF';
-  const renglones = sf
-    ? [{ neto: val('f_neto_sf'), alicuota: 0 }]
-    : readRenglonesFromForm();
+  let netos, alicuotaSimple;
+  if(sf){
+    netos = {21:'', '10.5':'', 27:'', 0:''};
+    netos[state.draft.alicuotaSimple || 21] = val('f_neto_sf');
+    alicuotaSimple = state.draft.alicuotaSimple || 21;
+  } else {
+    const r = readNetosFromForm();
+    netos = r.netos; alicuotaSimple = r.alicuotaSimple;
+  }
   state.draft = {
     fecha: val('f_fecha'),
     contraparte: val('f_contraparte'),
     cuit: sf ? '' : val('f_cuit'),
     numeroComprobante: sf ? '' : val('f_numeroComprobante'),
     tipoComprobante: val('f_tipoComprobante', 'A'),
-    renglones,
+    netos, alicuotaSimple,
+    detalleAbierto: state.draft.detalleAbierto,
     percepcionIVA: sf ? '' : val('f_percepcionIVA'),
     percepcionIIBB: sf ? '' : val('f_percepcionIIBB'),
     otrosTributos: sf ? '' : val('f_otrosTributos'),
@@ -878,30 +919,21 @@ function attachMesEvents(){
     render();
   });
 
-  ['f_neto_sf','f_percepcionIVA','f_percepcionIIBB','f_otrosTributos','f_total','f_computaIVA'].forEach(id => {
+  ['f_neto_sf','f_neto_simple','f_alicuotaSimple','f_percepcionIVA','f_percepcionIIBB','f_otrosTributos','f_total','f_computaIVA'].forEach(id => {
     const el = document.getElementById(id);
     if(el) el.addEventListener('change', () => { readDraftFromForm(); render(); });
   });
 
-  document.querySelectorAll('.f_renglon_neto, .f_renglon_alicuota').forEach(el => {
+  document.querySelectorAll('.f_neto_rate').forEach(el => {
     el.addEventListener('change', () => { readDraftFromForm(); render(); });
   });
 
-  const addRenglon = document.getElementById('addRenglon');
-  if(addRenglon) addRenglon.onclick = () => {
+  const toggleDetalle = document.getElementById('toggleDetalle');
+  if(toggleDetalle) toggleDetalle.onclick = () => {
     readDraftFromForm();
-    state.draft.renglones.push({neto:'', alicuota:21});
+    state.draft.detalleAbierto = !state.draft.detalleAbierto;
     render();
   };
-
-  document.querySelectorAll('.renglon-del').forEach(btn => {
-    btn.onclick = () => {
-      readDraftFromForm();
-      const idx = parseInt(btn.dataset.idx);
-      state.draft.renglones.splice(idx, 1);
-      render();
-    };
-  });
 
   const retake = document.getElementById('retakePhoto');
   if(retake) retake.onclick = () => { state.upload = null; state.draft = emptyDraft(); render(); };
@@ -910,11 +942,14 @@ function attachMesEvents(){
   if(saveBtn) saveBtn.onclick = async () => {
     readDraftFromForm();
     const sf = state.draft.tipoComprobante === 'SF';
-    const renglonesLimpios = state.draft.renglones
-      .map(r => ({ neto: parseFloat(r.neto) || 0, alicuota: sf ? 0 : r.alicuota }))
-      .filter(r => r.neto > 0);
-    const neto = renglonesLimpios.reduce((s,r) => s + r.neto, 0);
-    const iva = sf ? 0 : renglonesLimpios.reduce((s,r) => s + Math.round(r.neto * r.alicuota) / 100, 0);
+    const netosLimpios = {};
+    Object.entries(state.draft.netos).forEach(([rate, v]) => {
+      const n = parseFloat(v) || 0;
+      if(n > 0) netosLimpios[rate] = n;
+    });
+    const activos = Object.entries(netosLimpios);
+    const neto = activos.reduce((s,[,v]) => s + v, 0);
+    const iva = sf ? 0 : activos.reduce((s,[rate,v]) => s + Math.round(v * parseFloat(rate)) / 100, 0);
     const percepcionIVA = sf ? 0 : (parseFloat(state.draft.percepcionIVA) || 0);
     const percepcionIIBB = sf ? 0 : (parseFloat(state.draft.percepcionIIBB) || 0);
     const otrosTributos = sf ? 0 : (parseFloat(state.draft.otrosTributos) || 0);
@@ -922,7 +957,7 @@ function attachMesEvents(){
     const contraparte = state.draft.contraparte.trim();
     const fecha = state.draft.fecha;
 
-    if(neto <= 0 || renglonesLimpios.length === 0){ alert(sf ? 'Ingresá el monto.' : 'Ingresá el neto gravado.'); return; }
+    if(neto <= 0 || activos.length === 0){ alert(sf ? 'Ingresá el monto.' : 'Ingresá el neto gravado.'); return; }
     if(!state.draft.categoria){ alert('Elegí una categoría.'); return; }
 
     const entry = {
@@ -933,9 +968,9 @@ function attachMesEvents(){
       cuit: state.draft.cuit.trim(),
       categoria: state.draft.categoria,
       fecha, contraparte,
-      renglones: sf ? undefined : renglonesLimpios,
+      netos: sf ? undefined : netosLimpios,
       neto, iva,
-      alicuota: renglonesLimpios.length === 1 ? renglonesLimpios[0].alicuota : null,
+      alicuota: activos.length === 1 ? parseFloat(activos[0][0]) : null,
       percepcionIVA, percepcionIIBB, otrosTributos, total,
       computaIVA: sf ? false : state.draft.computaIVA,
       dudoso: state.draft.dudosos.length > 0,
