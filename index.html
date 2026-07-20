@@ -137,6 +137,47 @@
 
   .empty{text-align:center; padding:30px 10px; color:var(--muted); font-size:13px;}
   ::placeholder{color:#5C6266;}
+
+  .view-tabs{display:flex; gap:8px; margin:14px 0;}
+  .view-tabs button{
+    flex:1; padding:9px; border-radius:8px; border:1px solid var(--line);
+    background:var(--panel); color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:12.5px; cursor:pointer;
+  }
+  .view-tabs button.active{background:var(--panel-2); color:var(--amber); border-color:var(--amber);}
+
+  .checkbox-row{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin:12px 0; cursor:pointer;}
+  .checkbox-row input{width:auto; accent-color:var(--amber);}
+
+  .year-nav{display:flex; align-items:center; justify-content:space-between; margin:0 0 12px;}
+  .year-nav button{
+    background:var(--panel); border:1px solid var(--line); color:var(--text);
+    width:32px;height:32px;border-radius:6px; font-size:16px; cursor:pointer;
+  }
+  .year-label{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:15px;}
+
+  .dash-card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px;}
+  .dash-card-title{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:12px;}
+
+  .bar-chart{display:flex; align-items:flex-end; gap:6px; height:120px; margin-bottom:6px;}
+  .bar-col{flex:1; display:flex; flex-direction:column-reverse; align-items:center; height:100%; gap:1px;}
+  .bar-fill{width:100%; border-radius:3px 3px 0 0; min-height:2px;}
+  .bar-fill.venta{background:var(--teal);}
+  .bar-fill.compra{background:var(--rust);}
+  .bar-labels{display:flex; gap:6px;}
+  .bar-labels span{flex:1; text-align:center; font-size:9px; color:var(--muted); text-transform:capitalize;}
+
+  .rank-row{margin-bottom:10px;}
+  .rank-top{display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:4px;}
+  .rank-top .cat{color:var(--text);}
+  .rank-top .amt{color:var(--muted);}
+  .rank-track{height:6px; background:var(--panel-2); border-radius:4px; overflow:hidden;}
+  .rank-fill{height:100%; background:var(--amber); border-radius:4px;}
+
+  .pend-banner{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:rgba(232,163,61,0.1); border:1px solid var(--amber); border-radius:10px;
+    padding:12px 14px; margin-bottom:14px; font-size:12.5px;
+  }
 </style>
 </head>
 <body>
@@ -146,15 +187,49 @@
 <script>
 const MONTH_NAMES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const ALICUOTAS = [21, 10.5, 27, 0];
-const emptyDraft = () => ({fecha: new Date().toISOString().slice(0,10), contraparte:'', neto:'', alicuota:21, percepcion:'', dudosos:[]});
+const TIPOS_COMPROBANTE = ['A','B','C','NC','SF'];
+const TIPO_COMPROBANTE_LABEL = {A:'Factura A', B:'Factura B', C:'Factura C', NC:'Nota de crédito', SF:'Sin factura'};
+const CATEGORIAS = {
+  venta: [
+    {n:'Asesoramiento', c:true},
+    {n:'Control de plagas', c:true},
+    {n:'Extracción de petróleo y gas', c:true},
+    {n:'Otro', c:true}
+  ],
+  compra: [
+    {n:'Casa', c:false},
+    {n:'Alimento e higiene', c:false},
+    {n:'Transporte', c:true},
+    {n:'Bienestar', c:false},
+    {n:'Educación', c:false},
+    {n:'Otro', c:false}
+  ]
+};
+function categoriaDefaultComputa(tipo, nombreCategoria){
+  const cat = (CATEGORIAS[tipo] || []).find(c => c.n === nombreCategoria);
+  return cat ? cat.c : true;
+}
+const emptyDraft = () => ({
+  fecha: new Date().toISOString().slice(0,10),
+  contraparte:'', cuit:'', numeroComprobante:'', tipoComprobante:'A',
+  neto:'', alicuota:21, percepcionIVA:'', percepcionIIBB:'', otrosTributos:'', total:'',
+  categoria:'', computaIVA:true, dudosos:[]
+});
 
 let state = {
+  user: null,
+  authChecking: true,
+  authError: '',
   monthKey: currentMonthKey(),
   entries: [],
   formOpen: false,
   tipo: 'venta',
   loading: true,
   draft: emptyDraft(),
+  view: 'mes', // 'mes' | 'dashboard'
+  dashYear: new Date().getFullYear(),
+  dashLoading: false,
+  allMonths: {},
   upload: null // {thumb, status: 'analyzing'|'done'|'error', errorMsg}
 };
 
@@ -171,31 +246,80 @@ function fmtMoney(n){
   return '$' + n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 
+async function apiFetch(url, options){
+  const res = await fetch(url, options);
+  if(res.status === 401){
+    state.user = null;
+    state.authError = '';
+    render();
+    throw new Error('sesión vencida');
+  }
+  return res;
+}
+
 async function loadMonth(key){
   state.loading = true;
   render();
   try{
-    const raw = localStorage.getItem('entries:' + key);
-    state.entries = raw ? JSON.parse(raw) : [];
+    const res = await apiFetch('/api/entries?month=' + encodeURIComponent(key));
+    const data = await res.json();
+    state.entries = Array.isArray(data.entries) ? data.entries : [];
   }catch(e){
-    state.entries = [];
+    if(e.message !== 'sesión vencida'){ console.error(e); state.entries = []; }
+    return;
   }
   state.loading = false;
   render();
 }
 async function saveMonth(){
   try{
-    localStorage.setItem('entries:' + state.monthKey, JSON.stringify(state.entries));
-  }catch(e){ console.error('Error guardando', e); }
+    await apiFetch('/api/entries', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ month: state.monthKey, entries: state.entries })
+    });
+  }catch(e){ if(e.message !== 'sesión vencida') console.error('Error guardando', e); }
 }
 function calcTotals(entries){
-  let debito = 0, credito = 0, percepciones = 0;
+  let debito = 0, credito = 0, percepcionesIIBB = 0, percepcionesIVA = 0, otrosTributos = 0;
   entries.forEach(e => {
-    if(e.tipo === 'venta') debito += e.iva;
-    else credito += e.iva;
-    percepciones += (e.percepcion || 0);
+    const sign = e.tipoComprobante === 'NC' ? -1 : 1;
+    const computa = e.computaIVA !== false; // por defecto true si no está definido
+    if(computa){
+      if(e.tipo === 'venta') debito += sign * e.iva;
+      else credito += sign * e.iva;
+      percepcionesIVA += sign * (e.percepcionIVA || 0);
+    }
+    percepcionesIIBB += sign * (e.percepcionIIBB || 0);
+    otrosTributos += sign * (e.otrosTributos || 0);
   });
-  return {debito, credito, saldo: debito - credito, percepciones};
+  // Percepciones de IVA sufridas como comprador se computan como pago a cuenta del IVA
+  return {debito, credito, percepcionesIVA, percepcionesIIBB, otrosTributos, saldo: debito - credito - percepcionesIVA};
+}
+
+function montoFlujo(e){
+  // Monto total del movimiento para el flujo de fondos por unidad (más allá de lo fiscal)
+  const sign = e.tipoComprobante === 'NC' ? -1 : 1;
+  return sign * (e.total || (e.neto + e.iva + (e.percepcionIVA||0) + (e.percepcionIIBB||0) + (e.otrosTributos||0)));
+}
+
+async function loadAllMonths(){
+  try{
+    const res = await apiFetch('/api/entries?all=1');
+    const data = await res.json();
+    return data.months || {};
+  }catch(e){
+    if(e.message !== 'sesión vencida') console.error(e);
+    return {};
+  }
+}
+
+async function loadDashboard(){
+  state.dashLoading = true;
+  render();
+  state.allMonths = await loadAllMonths();
+  state.dashLoading = false;
+  render();
 }
 
 function resizeImage(file, maxDim = 900, quality = 0.7){
@@ -256,12 +380,21 @@ async function attachPhoto(file){
     }
 
     state.tipo = parsed.tipo === 'compra' ? 'compra' : 'venta';
+    const catValida = CATEGORIAS[state.tipo].some(c => c.n === parsed.categoria) ? parsed.categoria : '';
     state.draft = {
       fecha: parsed.fecha || emptyDraft().fecha,
       contraparte: parsed.contraparte || '',
+      cuit: parsed.cuit || '',
+      numeroComprobante: parsed.numeroComprobante || '',
+      tipoComprobante: TIPOS_COMPROBANTE.includes(parsed.tipoComprobante) ? parsed.tipoComprobante : 'A',
       neto: parsed.neto ?? '',
       alicuota: parsed.alicuota ?? 21,
-      percepcion: parsed.percepcion ?? '',
+      percepcionIVA: parsed.percepcionIVA ?? '',
+      percepcionIIBB: parsed.percepcionIIBB ?? '',
+      otrosTributos: parsed.otrosTributos ?? '',
+      total: parsed.total ?? '',
+      categoria: catValida,
+      computaIVA: catValida ? categoriaDefaultComputa(state.tipo, catValida) : true,
       dudosos: Array.isArray(parsed.dudosos) ? parsed.dudosos : []
     };
     state.upload.status = 'done';
@@ -275,6 +408,93 @@ async function attachPhoto(file){
 
 function render(){
   const app = document.getElementById('app');
+
+  if(state.authChecking){
+    app.innerHTML = `<header><div class="eyebrow">Libro IVA</div><h1>Parciales mensuales</h1></header><div class="empty">Cargando...</div>`;
+    return;
+  }
+
+  if(!state.user){
+    app.innerHTML = `
+      <header>
+        <div class="eyebrow">Libro IVA</div>
+        <h1>Parciales mensuales</h1>
+      </header>
+      <div class="dash-card" style="margin-top:20px;">
+        <div class="dash-card-title">Iniciar sesión</div>
+        <div class="field">
+          <label>Usuario</label>
+          <input type="text" id="f_username" autocapitalize="off" autocomplete="username">
+        </div>
+        <div class="field">
+          <label>Contraseña</label>
+          <input type="password" id="f_password" autocomplete="current-password">
+        </div>
+        ${state.authError ? `<div style="font-size:12px; color:var(--rust); margin-bottom:10px;">${state.authError}</div>` : ''}
+        <button class="save-btn" id="loginBtn">Entrar</button>
+      </div>
+    `;
+    const doLogin = async () => {
+      const username = document.getElementById('f_username').value;
+      const password = document.getElementById('f_password').value;
+      const btn = document.getElementById('loginBtn');
+      btn.disabled = true; btn.textContent = 'Entrando...';
+      try{
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if(!res.ok){ state.authError = data.error || 'No se pudo iniciar sesión'; render(); return; }
+        state.user = data.username;
+        state.authError = '';
+        render();
+        loadMonth(state.monthKey);
+      }catch(e){
+        state.authError = 'Error de conexión. Probá de nuevo.';
+        render();
+      }
+    };
+    document.getElementById('loginBtn').onclick = doLogin;
+    document.getElementById('f_password').addEventListener('keydown', ev => { if(ev.key === 'Enter') doLogin(); });
+    return;
+  }
+
+  app.innerHTML = `
+    <header style="display:flex; justify-content:space-between; align-items:flex-start;">
+      <div>
+        <div class="eyebrow">Libro IVA</div>
+        <h1>Parciales mensuales</h1>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">${state.user}</div>
+        <button id="logoutBtn" style="background:none; border:1px solid var(--line); color:var(--muted); border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer; font-family:'IBM Plex Mono',monospace;">Salir</button>
+      </div>
+    </header>
+    <div class="view-tabs">
+      <button class="${state.view==='mes'?'active':''}" id="tabMes">Mes</button>
+      <button class="${state.view==='dashboard'?'active':''}" id="tabDashboard">📊 Dashboard</button>
+    </div>
+    ${state.view === 'dashboard' ? renderDashboardHTML() : renderMesHTML()}
+  `;
+  document.getElementById('tabMes').onclick = () => { state.view = 'mes'; render(); };
+  document.getElementById('tabDashboard').onclick = () => {
+    state.view = 'dashboard';
+    render();
+    loadDashboard();
+  };
+  document.getElementById('logoutBtn').onclick = async () => {
+    try{ await fetch('/api/logout', {method:'POST'}); }catch(e){}
+    state.user = null;
+    render();
+  };
+
+  if(state.view === 'mes') attachMesEvents();
+  else attachDashboardEvents();
+}
+
+function renderMesHTML(){
   const [y,m] = state.monthKey.split('-').map(Number);
   const monthLabel = MONTH_NAMES[m-1] + ' ' + y;
   const t = calcTotals(state.entries);
@@ -283,13 +503,9 @@ function render(){
   const sorted = [...state.entries].sort((a,b)=> (b.fecha||'').localeCompare(a.fecha||''));
   const d = state.draft;
   const isDoubt = (f) => d.dudosos.includes(f);
+  const sf = d.tipoComprobante === 'SF';
 
-  app.innerHTML = `
-    <header>
-      <div class="eyebrow">Libro IVA</div>
-      <h1>Parciales mensuales</h1>
-    </header>
-
+  return `
     <div class="month-nav">
       <button id="prevMonth">‹</button>
       <div class="month-label">${monthLabel}</div>
@@ -312,8 +528,12 @@ function render(){
         <span>Crédito (compras) ${fmtMoney(t.credito)}</span>
       </div>
       <div class="subrow">
+        <div>Percepciones IVA sufridas <span style="display:block;">(pago a cuenta del IVA)</span></div>
+        <span>${fmtMoney(t.percepcionesIVA)}</span>
+      </div>
+      <div class="subrow">
         <div>Percepciones IIBB sufridas <span style="display:block;">(compensan contra IIBB, no IVA)</span></div>
-        <span>${fmtMoney(t.percepciones)}</span>
+        <span>${fmtMoney(t.percepcionesIIBB)}</span>
       </div>
     </div>
 
@@ -343,30 +563,90 @@ function render(){
         </div>
       `}
 
+      <div class="row2">
+        <div class="field ${isDoubt('tipoComprobante')?'doubt':''}">
+          <label>Tipo comprobante ${isDoubt('tipoComprobante')?'<span class="doubt-flag">●</span>':''}</label>
+          <select id="f_tipoComprobante">
+            ${TIPOS_COMPROBANTE.map(t => `<option value="${t}" ${t===d.tipoComprobante?'selected':''}>${TIPO_COMPROBANTE_LABEL[t]}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field ${isDoubt('numeroComprobante')?'doubt':''}">
+          <label>N° comprobante ${isDoubt('numeroComprobante')?'<span class="doubt-flag">●</span>':''}</label>
+          <input type="text" id="f_numeroComprobante" placeholder="0001-00001234" value="${d.numeroComprobante}" ${sf?'disabled':''}>
+        </div>
+      </div>
       <div class="field ${isDoubt('fecha')?'doubt':''}">
         <label>Fecha ${isDoubt('fecha')?'<span class="doubt-flag">● a confirmar</span>':''}</label>
         <input type="date" id="f_fecha" value="${d.fecha}">
       </div>
       <div class="field ${isDoubt('contraparte')?'doubt':''}">
-        <label>${state.tipo === 'venta' ? 'Cliente' : 'Proveedor'} / N° factura ${isDoubt('contraparte')?'<span class="doubt-flag">● a confirmar</span>':''}</label>
-        <input type="text" id="f_contraparte" placeholder="Ej: Empresa SRL - Fact. A-0001-00001234" value="${d.contraparte}">
+        <label>${state.tipo === 'venta' ? 'Cliente' : 'Proveedor'} ${isDoubt('contraparte')?'<span class="doubt-flag">● a confirmar</span>':''}</label>
+        <input type="text" id="f_contraparte" placeholder="Ej: Empresa SRL" value="${d.contraparte}">
+      </div>
+      ${!sf ? `
+      <div class="field ${isDoubt('cuit')?'doubt':''}">
+        <label>CUIT ${isDoubt('cuit')?'<span class="doubt-flag">●</span>':''}</label>
+        <input type="text" id="f_cuit" placeholder="20-12345678-9" value="${d.cuit}">
+      </div>` : ''}
+      <div class="field ${isDoubt('categoria')?'doubt':''}">
+        <label>Categoría ${isDoubt('categoria')?'<span class="doubt-flag">●</span>':''}</label>
+        <select id="f_categoria">
+          <option value="">— Elegir —</option>
+          ${CATEGORIAS[state.tipo].map(c => `<option value="${c.n}" ${c.n===d.categoria?'selected':''}>${c.n}</option>`).join('')}
+        </select>
       </div>
       <div class="row2">
         <div class="field ${isDoubt('neto')?'doubt':''}">
-          <label>Neto gravado ${isDoubt('neto')?'<span class="doubt-flag">●</span>':''}</label>
+          <label>${sf ? 'Monto' : 'Neto gravado'} ${isDoubt('neto')?'<span class="doubt-flag">●</span>':''}</label>
           <input type="number" step="0.01" id="f_neto" placeholder="0.00" value="${d.neto}">
         </div>
+        ${!sf ? `
         <div class="field ${isDoubt('alicuota')?'doubt':''}">
           <label>Alícuota ${isDoubt('alicuota')?'<span class="doubt-flag">●</span>':''}</label>
           <select id="f_alicuota">
             ${ALICUOTAS.map(a => `<option value="${a}" ${a==d.alicuota?'selected':''}>${a}%</option>`).join('')}
           </select>
+        </div>` : ''}
+      </div>
+      ${!sf ? `
+      <div class="row2">
+        <div class="field ${isDoubt('percepcionIVA')?'doubt':''}">
+          <label>Percepción IVA ${isDoubt('percepcionIVA')?'<span class="doubt-flag">●</span>':''}</label>
+          <input type="number" step="0.01" id="f_percepcionIVA" placeholder="0.00" value="${d.percepcionIVA}">
+        </div>
+        <div class="field ${isDoubt('percepcionIIBB')?'doubt':''}">
+          <label>Percepción IIBB ${isDoubt('percepcionIIBB')?'<span class="doubt-flag">●</span>':''}</label>
+          <input type="number" step="0.01" id="f_percepcionIIBB" placeholder="0.00" value="${d.percepcionIIBB}">
         </div>
       </div>
-      <div class="field ${isDoubt('percepcion')?'doubt':''}">
-        <label>Percepción IIBB ${isDoubt('percepcion')?'<span class="doubt-flag">● a confirmar</span>':''}</label>
-        <input type="number" step="0.01" id="f_percepcion" placeholder="0.00" value="${d.percepcion}">
+      <div class="row2">
+        <div class="field">
+          <label>Otros tributos</label>
+          <input type="number" step="0.01" id="f_otrosTributos" placeholder="0.00" value="${d.otrosTributos}">
+        </div>
+        <div class="field ${isDoubt('total')?'doubt':''}">
+          <label>Total comprobante ${isDoubt('total')?'<span class="doubt-flag">●</span>':''}</label>
+          <input type="number" step="0.01" id="f_total" placeholder="0.00" value="${d.total}">
+        </div>
       </div>
+      <label class="checkbox-row">
+        <input type="checkbox" id="f_computaIVA" ${d.computaIVA ? 'checked' : ''}>
+        <span>Computa crédito/débito fiscal de IVA (afecta el saldo)</span>
+      </label>
+      ${(() => {
+        const neto = parseFloat(d.neto)||0, alicuota = d.alicuota, total = parseFloat(d.total)||0;
+        if(!total) return '';
+        const ivaCalc = Math.round(neto * alicuota) / 100;
+        const esperado = neto + ivaCalc + (parseFloat(d.percepcionIVA)||0) + (parseFloat(d.percepcionIIBB)||0) + (parseFloat(d.otrosTributos)||0);
+        const diff = Math.abs(esperado - total);
+        if(diff > 1){
+          return `<div style="font-size:11.5px; color:var(--rust); background:rgba(217,99,75,0.1); border:1px solid var(--rust); border-radius:8px; padding:8px 10px; margin:10px 0;">⚠ Los campos no cierran contra el total: calculado ${fmtMoney(esperado)} vs. total ${fmtMoney(total)}. Revisá antes de guardar.</div>`;
+        }
+        return `<div style="font-size:11.5px; color:var(--teal); margin:10px 0;">✓ Cierra contra el total</div>`;
+      })()}
+      ` : `
+      <div style="font-size:11.5px; color:var(--muted); margin:10px 0; line-height:1.5;">Sin factura: no genera crédito/débito fiscal de IVA. Se registra igual en el flujo de fondos por categoría.</div>
+      `}
 
       <button class="save-btn" id="saveEntry" ${state.upload && state.upload.status==='analyzing' ? 'disabled' : ''}>Confirmar y guardar</button>
       <button class="cancel-btn" id="cancelEntry">Cancelar</button>
@@ -380,35 +660,151 @@ function render(){
           ${e.foto ? `<img src="${e.foto}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;flex-shrink:0;">` : ''}
           <div class="entry-info">
             <div class="entry-name">${e.contraparte || '(sin nombre)'}${e.dudoso ? '<span class="doubt-dot"></span>' : ''}</div>
-            <div class="entry-meta">${e.fecha} · ${e.alicuota}% · neto ${fmtMoney(e.neto)}</div>
+            <div class="entry-meta">${e.fecha} · ${TIPO_COMPROBANTE_LABEL[e.tipoComprobante] || 'Factura A'}${e.tipoComprobante!=='SF' ? ' · ' + e.alicuota + '%' : ''} · ${fmtMoney(e.neto)}${e.categoria ? ' · ' + e.categoria : ''}${e.computaIVA===false ? ' · sin crédito fiscal' : ''}${e.cargadoPor ? ' · cargó ' + e.cargadoPor : ''}</div>
           </div>
         </div>
         <div class="entry-right">
           <div>
-            <div class="entry-amount">IVA ${fmtMoney(e.iva)}</div>
-            ${e.percepcion ? `<div class="entry-meta">perc. ${fmtMoney(e.percepcion)}</div>` : ''}
+            <div class="entry-amount">${e.tipoComprobante==='SF' ? fmtMoney(e.neto) : 'IVA ' + fmtMoney(e.iva)}</div>
+            ${e.percepcionIVA ? `<div class="entry-meta">perc. IVA ${fmtMoney(e.percepcionIVA)}</div>` : ''}
+            ${e.percepcionIIBB ? `<div class="entry-meta">perc. IIBB ${fmtMoney(e.percepcionIIBB)}</div>` : ''}
           </div>
           <button class="entry-del" data-id="${e.id}">✕</button>
         </div>
       </div>
     `).join(''))}
   `;
+}
 
-  attachEvents();
+function renderDashboardHTML(){
+  if(state.dashLoading){
+    return '<div class="empty">Cargando resumen...</div>';
+  }
+  const allMonths = state.allMonths || {};
+  const year = state.dashYear;
+  const monthKeysOfYear = MONTH_NAMES.map((_,i) => year + '-' + String(i+1).padStart(2,'0'));
+  const entriesOfYear = monthKeysOfYear.flatMap(k => allMonths[k] || []);
+
+  const t = calcTotals(entriesOfYear);
+  const isFavor = t.saldo <= 0;
+
+  // Gasto/facturado por mes (flujo de fondos completo, no solo lo fiscal)
+  const monthly = monthKeysOfYear.map(k => {
+    const es = allMonths[k] || [];
+    let venta = 0, compra = 0;
+    es.forEach(e => { if(e.tipo === 'venta') venta += montoFlujo(e); else compra += montoFlujo(e); });
+    return {venta, compra};
+  });
+  const maxMonthly = Math.max(1, ...monthly.map(m => Math.max(m.venta, m.compra)));
+
+  // Ranking por categoría (todas las entradas del año, negocio + vida)
+  const porCategoria = {};
+  entriesOfYear.forEach(e => {
+    const cat = e.categoria || 'Sin categoría';
+    porCategoria[cat] = (porCategoria[cat] || 0) + montoFlujo(e);
+  });
+  const ranking = Object.entries(porCategoria).sort((a,b) => b[1]-a[1]);
+  const maxCat = Math.max(1, ...ranking.map(r => r[1]));
+
+  // Pendientes: comprobantes dudosos en todo el histórico
+  const pendientes = Object.values(allMonths).flat().filter(e => e.dudoso).length;
+
+  const years = Array.from(new Set(Object.keys(allMonths).map(k => parseInt(k.slice(0,4))))).sort();
+  if(!years.includes(year)) years.push(year);
+
+  return `
+    <div class="year-nav">
+      <button id="prevYear">‹</button>
+      <div class="year-label">${year}</div>
+      <button id="nextYear">›</button>
+    </div>
+
+    ${pendientes > 0 ? `
+    <div class="pend-banner">
+      <span>⚠ Tenés ${pendientes} comprobante${pendientes>1?'s':''} marcado${pendientes>1?'s':''} como dudoso${pendientes>1?'s':''} para revisar</span>
+    </div>` : ''}
+
+    <div class="dash-card">
+      <div class="dash-card-title">Fiscal · saldo IVA ${year}</div>
+      <div class="saldo-top">
+        <div class="saldo-tag">Acumulado</div>
+        <div class="saldo-value ${isFavor ? 'favor' : 'pagar'}" style="font-size:24px;">${fmtMoney(Math.abs(t.saldo))}</div>
+      </div>
+      <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px;">${isFavor ? 'A favor' : 'A pagar'}</div>
+      <div class="subrow" style="margin-top:0; padding-top:10px;">
+        <div>Débito (ventas)</div><span>${fmtMoney(t.debito)}</span>
+      </div>
+      <div class="subrow">
+        <div>Crédito (compras)</div><span>${fmtMoney(t.credito)}</span>
+      </div>
+      <div class="subrow">
+        <div>Percepciones IVA (pago a cuenta)</div><span>${fmtMoney(t.percepcionesIVA)}</span>
+      </div>
+      <div class="subrow">
+        <div>Percepciones IIBB acumuladas</div><span>${fmtMoney(t.percepcionesIIBB)}</span>
+      </div>
+    </div>
+
+    <div class="dash-card">
+      <div class="dash-card-title">Facturado vs. gastado por mes</div>
+      <div class="bar-chart">
+        ${monthly.map(m => `
+          <div class="bar-col">
+            <div class="bar-fill venta" style="height:${(m.venta/maxMonthly*100)}%" title="Facturado: ${fmtMoney(m.venta)}"></div>
+            <div class="bar-fill compra" style="height:${(m.compra/maxMonthly*100)}%" title="Gastado: ${fmtMoney(m.compra)}"></div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="bar-labels">
+        ${MONTH_NAMES.map(n => `<span>${n.slice(0,3)}</span>`).join('')}
+      </div>
+      <div class="gauge-labels" style="margin-top:10px;">
+        <span><span style="color:var(--teal);">●</span> Facturado</span>
+        <span><span style="color:var(--rust);">●</span> Gastado</span>
+      </div>
+    </div>
+
+    <div class="dash-card">
+      <div class="dash-card-title">Por categoría · ${year} (todo: negocio y vida)</div>
+      ${ranking.length === 0 ? '<div class="empty">Todavía no hay comprobantes cargados en este año.</div>' : ranking.map(([cat, monto]) => `
+        <div class="rank-row">
+          <div class="rank-top"><span class="cat">${cat}</span><span class="amt">${fmtMoney(Math.abs(monto))}</span></div>
+          <div class="rank-track"><div class="rank-fill" style="width:${(Math.abs(monto)/maxCat*100)}%"></div></div>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
 function readDraftFromForm(){
+  const val = (id, fallback='') => { const el = document.getElementById(id); return el ? el.value : fallback; };
+  const sf = val('f_tipoComprobante') === 'SF';
   state.draft = {
-    fecha: document.getElementById('f_fecha').value,
-    contraparte: document.getElementById('f_contraparte').value,
-    neto: document.getElementById('f_neto').value,
-    alicuota: parseFloat(document.getElementById('f_alicuota').value),
-    percepcion: document.getElementById('f_percepcion').value,
+    fecha: val('f_fecha'),
+    contraparte: val('f_contraparte'),
+    cuit: sf ? '' : val('f_cuit'),
+    numeroComprobante: sf ? '' : val('f_numeroComprobante'),
+    tipoComprobante: val('f_tipoComprobante', 'A'),
+    neto: val('f_neto'),
+    alicuota: sf ? 0 : parseFloat(val('f_alicuota', '21')),
+    percepcionIVA: sf ? '' : val('f_percepcionIVA'),
+    percepcionIIBB: sf ? '' : val('f_percepcionIIBB'),
+    otrosTributos: sf ? '' : val('f_otrosTributos'),
+    total: sf ? '' : val('f_total'),
+    categoria: val('f_categoria'),
+    computaIVA: sf ? false : (document.getElementById('f_computaIVA') ? document.getElementById('f_computaIVA').checked : true),
     dudosos: state.draft.dudosos
   };
 }
 
-function attachEvents(){
+function attachDashboardEvents(){
+  const prevYear = document.getElementById('prevYear');
+  const nextYear = document.getElementById('nextYear');
+  if(prevYear) prevYear.onclick = () => { state.dashYear--; render(); };
+  if(nextYear) nextYear.onclick = () => { state.dashYear++; render(); };
+}
+
+function attachMesEvents(){
   document.getElementById('prevMonth').onclick = () => { state.monthKey = shiftMonth(state.monthKey, -1); loadMonth(state.monthKey); };
   document.getElementById('nextMonth').onclick = () => { state.monthKey = shiftMonth(state.monthKey, 1); loadMonth(state.monthKey); };
 
@@ -425,6 +821,7 @@ function attachEvents(){
     btn.onclick = () => {
       if(document.getElementById('f_fecha')) readDraftFromForm();
       state.tipo = btn.dataset.tipo;
+      if(!CATEGORIAS[state.tipo].some(c => c.n === state.draft.categoria)) state.draft.categoria = '';
       state.formOpen = true;
       render();
     };
@@ -433,6 +830,21 @@ function attachEvents(){
   const uploadArea = document.getElementById('uploadArea');
   if(uploadArea) uploadArea.onclick = () => document.getElementById('fileInput').click();
 
+  const tipoComprobanteSel = document.getElementById('f_tipoComprobante');
+  if(tipoComprobanteSel) tipoComprobanteSel.addEventListener('change', () => { readDraftFromForm(); render(); });
+
+  const categoriaSel = document.getElementById('f_categoria');
+  if(categoriaSel) categoriaSel.addEventListener('change', () => {
+    readDraftFromForm();
+    if(state.draft.categoria) state.draft.computaIVA = categoriaDefaultComputa(state.tipo, state.draft.categoria);
+    render();
+  });
+
+  ['f_neto','f_alicuota','f_percepcionIVA','f_percepcionIIBB','f_otrosTributos','f_total','f_computaIVA'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('change', () => { readDraftFromForm(); render(); });
+  });
+
   const retake = document.getElementById('retakePhoto');
   if(retake) retake.onclick = () => { state.upload = null; state.draft = emptyDraft(); render(); };
 
@@ -440,21 +852,32 @@ function attachEvents(){
   if(saveBtn) saveBtn.onclick = async () => {
     readDraftFromForm();
     const neto = parseFloat(state.draft.neto) || 0;
-    const alicuota = state.draft.alicuota;
-    const percepcion = parseFloat(state.draft.percepcion) || 0;
+    const sf = state.draft.tipoComprobante === 'SF';
+    const alicuota = sf ? 0 : state.draft.alicuota;
+    const percepcionIVA = sf ? 0 : (parseFloat(state.draft.percepcionIVA) || 0);
+    const percepcionIIBB = sf ? 0 : (parseFloat(state.draft.percepcionIIBB) || 0);
+    const otrosTributos = sf ? 0 : (parseFloat(state.draft.otrosTributos) || 0);
+    const total = sf ? 0 : (parseFloat(state.draft.total) || 0);
     const contraparte = state.draft.contraparte.trim();
     const fecha = state.draft.fecha;
 
-    if(neto <= 0){ alert('Ingresá el neto gravado.'); return; }
+    if(neto <= 0){ alert(sf ? 'Ingresá el monto.' : 'Ingresá el neto gravado.'); return; }
+    if(!state.draft.categoria){ alert('Elegí una categoría.'); return; }
 
     const entry = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
       tipo: state.tipo,
+      tipoComprobante: state.draft.tipoComprobante,
+      numeroComprobante: state.draft.numeroComprobante.trim(),
+      cuit: state.draft.cuit.trim(),
+      categoria: state.draft.categoria,
       fecha, contraparte, neto, alicuota,
-      iva: Math.round(neto * alicuota) / 100,
-      percepcion,
+      iva: sf ? 0 : Math.round(neto * alicuota) / 100,
+      percepcionIVA, percepcionIIBB, otrosTributos, total,
+      computaIVA: sf ? false : state.draft.computaIVA,
       dudoso: state.draft.dudosos.length > 0,
-      foto: state.upload ? state.upload.thumb : null
+      foto: state.upload ? state.upload.thumb : null,
+      cargadoPor: state.user
     };
     state.entries.push(entry);
     saveBtn.disabled = true;
@@ -481,7 +904,19 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
   e.target.value = '';
 });
 
-loadMonth(state.monthKey);
+async function init(){
+  try{
+    const res = await fetch('/api/me');
+    if(res.ok){
+      const data = await res.json();
+      state.user = data.username;
+    }
+  }catch(e){ /* sin sesión */ }
+  state.authChecking = false;
+  render();
+  if(state.user) loadMonth(state.monthKey);
+}
+init();
 </script>
 </body>
 </html>
