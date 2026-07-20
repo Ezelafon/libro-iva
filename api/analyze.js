@@ -16,10 +16,14 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en Vercel' });
   }
 
-  const { imageBase64, mediaType } = req.body || {};
+  const { imageBase64, mediaType, isPdf } = req.body || {};
   if (!imageBase64) {
     return res.status(400).json({ error: 'Falta la imagen' });
   }
+
+  const fileBlock = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: imageBase64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType || 'image/jpeg', data: imageBase64 } };
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -35,10 +39,10 @@ module.exports = async function handler(req, res) {
         messages: [{
           role: 'user',
           content: [
-            { type: 'image', source: { type: 'base64', media_type: mediaType || 'image/jpeg', data: imageBase64 } },
+            fileBlock,
             {
               type: 'text',
-              text: 'Extraé los datos de este comprobante fiscal argentino (factura o ticket). Devolvé SOLAMENTE un objeto JSON, sin texto adicional, sin markdown, con esta forma exacta: {"tipo":"venta" o "compra" (venta si el emisor sos vos/LAFON JORGE EZEQUIEL cobrando, compra si estás pagando a otro proveedor),"tipoComprobante":"A"|"B"|"C"|"NC" (NC = nota de crédito; mirá el encabezado del ticket/factura, ej "FACTURA A", "TIQUE FACTURA A", "COD.006"=A, "COD.081"=A, "COD.011"=B, "COD.083"=B; si es nota de crédito marcá NC sin importar la letra),"numeroComprobante":"punto de venta y número tal cual figuran, ej 0052-00032605, o null","cuit":"CUIT de la contraparte (el que NO es LAFON JORGE EZEQUIEL / 20-32694351-8), formato NN-NNNNNNNN-N, o null","fecha":"YYYY-MM-DD o null","contraparte":"nombre de la empresa/persona en el comprobante o null","neto":numero o null (importe neto gravado, antes de IVA),"alicuota":21|10.5|27|0 o null,"iva":numero o null (monto de IVA discriminado si figura, para cruzar contra neto×alicuota),"otrosTributos":numero (impuestos internos, tasas municipales u otros tributos que no sean IVA/percepciones; 0 si no hay),"percepcionIVA":numero (percepción de IVA si figura discriminada como tal; 0 si no hay),"percepcionIIBB":numero (percepción de Ingresos Brutos si figura; 0 si no hay),"total":numero o null (importe TOTAL del comprobante),"categoria":"una sola etiqueta corta que mejor describa el concepto: para compras elegí entre Combustible, Insumos/EPP, Servicios profesionales, Alquiler, Impuestos/tasas, Honorarios, Otro; para ventas elegí entre Inspección altura, Inspección espacios confinados, Detección de gas, Ticketing/eventos, Otro","dudosos":["nombres de campos con baja confianza, de esta lista: fecha, contraparte, neto, alicuota, percepcionIIBB, percepcionIVA, total, tipoComprobante, numeroComprobante, cuit, categoria"]}. No inventes valores: si no podes leer un campo con confianza, poné null (0 para los numéricos que suelen ser 0) y agregalo a dudosos.'
+              text: 'Extraé los datos de este comprobante fiscal argentino (factura o ticket). Devolvé SOLAMENTE un objeto JSON, sin texto adicional, sin markdown, con esta forma exacta: {"tipo":"venta" o "compra" (venta si el emisor sos vos/LAFON JORGE EZEQUIEL cobrando, compra si estás pagando a otro proveedor),"tipoComprobante":"A"|"B"|"C"|"NC" (NC = nota de crédito; mirá el encabezado del ticket/factura, ej "FACTURA A", "TIQUE FACTURA A", "COD.006"=A, "COD.081"=A, "COD.011"=B, "COD.083"=B; si es nota de crédito marcá NC sin importar la letra),"numeroComprobante":"punto de venta y número tal cual figuran, ej 0052-00032605, o null","cuit":"CUIT de la contraparte (el que NO es LAFON JORGE EZEQUIEL / 20-32694351-8), formato NN-NNNNNNNN-N, o null","fecha":"YYYY-MM-DD o null","contraparte":"nombre de la empresa/persona en el comprobante o null","renglones":[{"neto":numero, "alicuota":21|10.5|27|0}] (IMPORTANTE: muchos tickets, sobre todo de supermercado, tienen productos con distintas alícuotas de IVA en el mismo comprobante — mirá bien el detalle de IVA discriminado por tasa, por ejemplo "Iva (21.000%)" y "Iva (10.500%)" por separado, y creá UN renglón por cada neto+alícuota distinta que encuentres, no sumes todo en una sola. Si solo hay una alícuota, devolvé igual un array con un solo elemento),"otrosTributos":numero (impuestos internos, tasas municipales u otros tributos que no sean IVA/percepciones; 0 si no hay),"percepcionIVA":numero (percepción de IVA si figura discriminada como tal; 0 si no hay),"percepcionIIBB":numero (percepción de Ingresos Brutos si figura; 0 si no hay),"total":numero o null (importe TOTAL del comprobante, el que realmente se pagó),"categoria":"una sola etiqueta corta que mejor describa el concepto: para compras elegí entre Casa, Alimento e higiene, Transporte, Bienestar, Educación, Otro; para ventas elegí entre Asesoramiento, Control de plagas, Extracción de petróleo y gas, Otro","dudosos":["nombres de campos con baja confianza, de esta lista: fecha, contraparte, neto, alicuota, percepcionIIBB, percepcionIVA, total, tipoComprobante, numeroComprobante, cuit, categoria"]}. No inventes valores: si no podes leer un campo con confianza, poné null (0 para los numéricos que suelen ser 0) y agregalo a dudosos. Antes de responder, verificá mentalmente que la suma de los netos de "renglones" más el IVA de cada uno más las percepciones más otrosTributos dé aproximadamente el total del comprobante; si no cierra, revisá si te faltó separar alguna alícuota.'
             }
           ]
         }]
