@@ -217,19 +217,25 @@ function categoriaDefaultComputa(tipo, nombreCategoria){
 const emptyDraft = () => ({
   fecha: new Date().toISOString().slice(0,10),
   contraparte:'', cuit:'', numeroComprobante:'', tipoComprobante:'A',
-  netos: {21:'', '10.5':'', 27:'', 0:''},
+  netos: {21:{neto:'',iva:''}, '10.5':{neto:'',iva:''}, 27:{neto:'',iva:''}, 0:{neto:'',iva:''}},
   alicuotaSimple: 21, detalleAbierto: false,
   percepcionIVA:'', percepcionIIBB:'', otrosTributos:'', total:'',
   categoria:'', computaIVA:true, dudosos:[]
 });
+function ivaDeRenglon(rate, r){
+  const neto = parseFloat(r && r.neto) || 0;
+  const ivaLeido = parseFloat(r && r.iva) || 0;
+  // Si la IA (o el usuario) cargó el IVA impreso, se usa ese; si no, se calcula.
+  return ivaLeido > 0 ? ivaLeido : Math.round(neto * parseFloat(rate)) / 100;
+}
 function netosActivos(netos){
-  return Object.entries(netos||{}).filter(([,v]) => (parseFloat(v)||0) > 0);
+  return Object.entries(netos||{}).filter(([,r]) => (parseFloat(r && r.neto)||0) > 0);
 }
 function netosTotal(netos){
-  return Object.values(netos||{}).reduce((s,v) => s + (parseFloat(v)||0), 0);
+  return Object.values(netos||{}).reduce((s,r) => s + (parseFloat(r && r.neto)||0), 0);
 }
 function netosIVA(netos){
-  return Object.entries(netos||{}).reduce((s,[rate,v]) => s + Math.round((parseFloat(v)||0) * parseFloat(rate)) / 100, 0);
+  return Object.entries(netos||{}).reduce((s,[rate,r]) => s + ivaDeRenglon(rate, r), 0);
 }
 
 let state = {
@@ -399,14 +405,21 @@ async function attachPhoto(file){
 
     state.tipo = parsed.tipo === 'compra' ? 'compra' : 'venta';
     const catValida = CATEGORIAS[state.tipo].some(c => c.n === parsed.categoria) ? parsed.categoria : '';
-    const netos = {21:'', '10.5':'', 27:'', 0:''};
+    const netos = {21:{neto:'',iva:''}, '10.5':{neto:'',iva:''}, 27:{neto:'',iva:''}, 0:{neto:'',iva:''}};
     if(parsed.netos && typeof parsed.netos === 'object'){
-      [21, '10.5', 27, 0].forEach(rate => { if(parsed.netos[rate]) netos[rate] = parsed.netos[rate]; });
+      [21, '10.5', 27, 0].forEach(rate => {
+        const v = parsed.netos[rate];
+        if(v && typeof v === 'object'){
+          if(v.neto) netos[rate] = { neto: v.neto, iva: v.iva ?? '' };
+        } else if(v){
+          netos[rate] = { neto: v, iva: '' }; // formato viejo: solo número, sin IVA leído
+        }
+      });
     } else if(Array.isArray(parsed.renglones)){
-      parsed.renglones.forEach(r => { if(ALICUOTAS.includes(r.alicuota) && r.neto) netos[r.alicuota] = r.neto; });
+      parsed.renglones.forEach(r => { if(ALICUOTAS.includes(r.alicuota) && r.neto) netos[r.alicuota] = { neto: r.neto, iva: '' }; });
     } else if(parsed.neto){
       const rate = ALICUOTAS.includes(parsed.alicuota) ? parsed.alicuota : 21;
-      netos[rate] = parsed.neto;
+      netos[rate] = { neto: parsed.neto, iva: '' };
     }
     const activos = netosActivos(netos);
     state.draft = {
@@ -629,13 +642,13 @@ function renderMesHTML(){
       ${sf ? `
       <div class="field ${isDoubt('neto')?'doubt':''}">
         <label>Monto ${isDoubt('neto')?'<span class="doubt-flag">●</span>':''}</label>
-        <input type="number" step="0.01" id="f_neto_sf" placeholder="0.00" value="${d.netos[d.alicuotaSimple] ?? ''}">
+        <input type="number" step="0.01" id="f_neto_sf" placeholder="0.00" value="${d.netos[d.alicuotaSimple] ? d.netos[d.alicuotaSimple].neto : ''}">
       </div>
       ` : (!d.detalleAbierto ? `
       <div class="row2">
         <div class="field ${isDoubt('neto')?'doubt':''}">
           <label>Neto gravado ${isDoubt('neto')?'<span class="doubt-flag">●</span>':''}</label>
-          <input type="number" step="0.01" id="f_neto_simple" placeholder="0.00" value="${d.netos[d.alicuotaSimple] ?? ''}">
+          <input type="number" step="0.01" id="f_neto_simple" placeholder="0.00" value="${d.netos[d.alicuotaSimple] ? d.netos[d.alicuotaSimple].neto : ''}">
         </div>
         <div class="field ${isDoubt('alicuota')?'doubt':''}" style="flex:0 0 90px;">
           <label>Alícuota ${isDoubt('alicuota')?'<span class="doubt-flag">●</span>':''}</label>
@@ -647,13 +660,21 @@ function renderMesHTML(){
       <button type="button" class="link-btn" id="toggleDetalle">+ Varias alícuotas en este comprobante</button>
       ` : `
       <div class="field">
-        <label>Neto gravado por alícuota ${isDoubt('neto')?'<span class="doubt-flag">● a confirmar</span>':''}</label>
+        <label>Neto e IVA por alícuota ${isDoubt('neto')?'<span class="doubt-flag">● a confirmar</span>':''}</label>
+      </div>
+      <div class="row2" style="margin-bottom:2px;">
+        <div style="flex:0 0 60px;"></div>
+        <div class="field" style="font-size:10px; color:var(--faint); text-transform:uppercase; letter-spacing:.05em; margin-bottom:2px;">Neto</div>
+        <div class="field" style="font-size:10px; color:var(--faint); text-transform:uppercase; letter-spacing:.05em; margin-bottom:2px;">IVA (impreso)</div>
       </div>
       ${ALICUOTAS.map(rate => `
         <div class="row2">
-          <div class="field" style="flex:0 0 70px; color:var(--muted); font-size:13px; padding-top:10px;">${rate == 0 ? 'Exento' : rate + '%'}</div>
+          <div class="field" style="flex:0 0 60px; color:var(--muted); font-size:13px; padding-top:10px;">${rate == 0 ? 'Exento' : rate + '%'}</div>
           <div class="field">
-            <input type="number" step="0.01" class="f_neto_rate" data-rate="${rate}" placeholder="0.00" value="${d.netos[rate] ?? ''}">
+            <input type="number" step="0.01" class="f_neto_rate" data-rate="${rate}" placeholder="0.00" value="${d.netos[rate] ? d.netos[rate].neto : ''}">
+          </div>
+          <div class="field">
+            <input type="number" step="0.01" class="f_iva_rate" data-rate="${rate}" placeholder="auto" value="${d.netos[rate] ? d.netos[rate].iva : ''}" ${rate == 0 ? 'disabled' : ''}>
           </div>
         </div>
       `).join('')}
@@ -831,7 +852,11 @@ function readNetosFromForm(){
   const netos = {...state.draft.netos};
   const detalleInputs = document.querySelectorAll('.f_neto_rate');
   if(detalleInputs.length > 0){
-    detalleInputs.forEach(input => { netos[input.dataset.rate] = input.value; });
+    detalleInputs.forEach(input => {
+      const rate = input.dataset.rate;
+      const ivaInput = document.querySelector(`.f_iva_rate[data-rate="${rate}"]`);
+      netos[rate] = { neto: input.value, iva: ivaInput ? ivaInput.value : '' };
+    });
     return { netos, alicuotaSimple: state.draft.alicuotaSimple };
   }
   const simpleInput = document.getElementById('f_neto_simple');
@@ -839,8 +864,8 @@ function readNetosFromForm(){
   if(simpleInput){
     const rate = simpleSel ? parseFloat(simpleSel.value) : state.draft.alicuotaSimple;
     // vista simple asume un solo renglón activo: limpiamos los demás casilleros
-    const cleared = {21:'', '10.5':'', 27:'', 0:''};
-    cleared[rate] = simpleInput.value;
+    const cleared = {21:{neto:'',iva:''}, '10.5':{neto:'',iva:''}, 27:{neto:'',iva:''}, 0:{neto:'',iva:''}};
+    cleared[rate] = { neto: simpleInput.value, iva: '' }; // IVA se calcula solo en la vista simple
     return { netos: cleared, alicuotaSimple: rate };
   }
   return { netos, alicuotaSimple: state.draft.alicuotaSimple };
@@ -851,8 +876,8 @@ function readDraftFromForm(){
   const sf = val('f_tipoComprobante') === 'SF';
   let netos, alicuotaSimple;
   if(sf){
-    netos = {21:'', '10.5':'', 27:'', 0:''};
-    netos[state.draft.alicuotaSimple || 21] = val('f_neto_sf');
+    netos = {21:{neto:'',iva:''}, '10.5':{neto:'',iva:''}, 27:{neto:'',iva:''}, 0:{neto:'',iva:''}};
+    netos[state.draft.alicuotaSimple || 21] = { neto: val('f_neto_sf'), iva: '' };
     alicuotaSimple = state.draft.alicuotaSimple || 21;
   } else {
     const r = readNetosFromForm();
@@ -924,7 +949,7 @@ function attachMesEvents(){
     if(el) el.addEventListener('change', () => { readDraftFromForm(); render(); });
   });
 
-  document.querySelectorAll('.f_neto_rate').forEach(el => {
+  document.querySelectorAll('.f_neto_rate, .f_iva_rate').forEach(el => {
     el.addEventListener('change', () => { readDraftFromForm(); render(); });
   });
 
@@ -943,13 +968,13 @@ function attachMesEvents(){
     readDraftFromForm();
     const sf = state.draft.tipoComprobante === 'SF';
     const netosLimpios = {};
-    Object.entries(state.draft.netos).forEach(([rate, v]) => {
-      const n = parseFloat(v) || 0;
-      if(n > 0) netosLimpios[rate] = n;
+    Object.entries(state.draft.netos).forEach(([rate, r]) => {
+      const n = parseFloat(r && r.neto) || 0;
+      if(n > 0) netosLimpios[rate] = { neto: n, iva: sf ? 0 : ivaDeRenglon(rate, r) };
     });
     const activos = Object.entries(netosLimpios);
-    const neto = activos.reduce((s,[,v]) => s + v, 0);
-    const iva = sf ? 0 : activos.reduce((s,[rate,v]) => s + Math.round(v * parseFloat(rate)) / 100, 0);
+    const neto = activos.reduce((s,[,r]) => s + r.neto, 0);
+    const iva = sf ? 0 : activos.reduce((s,[,r]) => s + r.iva, 0);
     const percepcionIVA = sf ? 0 : (parseFloat(state.draft.percepcionIVA) || 0);
     const percepcionIIBB = sf ? 0 : (parseFloat(state.draft.percepcionIIBB) || 0);
     const otrosTributos = sf ? 0 : (parseFloat(state.draft.otrosTributos) || 0);
