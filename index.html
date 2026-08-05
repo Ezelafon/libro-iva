@@ -225,6 +225,7 @@ const CATEGORIAS = {
 };
 const emptyDraft = () => ({
   fecha: new Date().toISOString().slice(0,10),
+  mesContable: new Date().toISOString().slice(0,7),
   contraparte:'', cuit:'', numeroComprobante:'', tipoComprobante:'A',
   netos: {21:{neto:'',iva:''}, '10.5':{neto:'',iva:''}, 27:{neto:'',iva:''}, 0:{neto:'',iva:''}},
   alicuotaSimple: 21, detalleAbierto: false,
@@ -371,8 +372,7 @@ async function saveMonth(){
 }
 
 // Guarda un comprobante en el mes que le corresponde por su fecha, aunque sea distinto del mes que estás mirando
-async function guardarEnMesDeLaFecha(entry){
-  const mesDestino = (entry.fecha || '').slice(0,7); // YYYY-MM
+async function guardarEnMes(entry, mesDestino){
   if(!mesDestino || mesDestino === state.monthKey){
     state.entries.push(entry);
     await saveMonth();
@@ -537,8 +537,10 @@ async function attachPhoto(file){
       netos[rate] = { neto: parsed.neto, iva: '' };
     }
     const activos = netosActivos(netos);
+    const fechaFinal = parsed.fecha || emptyDraft().fecha;
     state.draft = {
-      fecha: parsed.fecha || emptyDraft().fecha,
+      fecha: fechaFinal,
+      mesContable: fechaFinal.slice(0,7),
       contraparte: parsed.contraparte || '',
       cuit: parsed.cuit || '',
       numeroComprobante: parsed.numeroComprobante || '',
@@ -738,6 +740,13 @@ function renderMesHTML(){
       <div class="field ${isDoubt('fecha')?'doubt':''}">
         <label>Fecha ${isDoubt('fecha')?'<span class="doubt-flag">● a confirmar</span>':''}</label>
         <input type="date" id="f_fecha" value="${d.fecha}">
+      </div>
+      <div class="field">
+        <label>Mes contable (a qué mes se imputa)</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <input type="month" id="f_mesContable" value="${d.mesContable}" style="flex:1;">
+          ${d.mesContable !== state.monthKey ? `<button type="button" class="link-btn" style="padding:0; white-space:nowrap;" id="usarMesActual">Usar ${MONTH_NAMES[parseInt(state.monthKey.slice(5,7))-1].slice(0,3)}</button>` : ''}
+        </div>
       </div>
       <div class="field ${isDoubt('contraparte')?'doubt':''}">
         <label>${state.tipo === 'venta' ? 'Cliente' : 'Proveedor'} ${isDoubt('contraparte')?'<span class="doubt-flag">● a confirmar</span>':''}</label>
@@ -1010,6 +1019,7 @@ function readDraftFromForm(){
   }
   state.draft = {
     fecha: val('f_fecha'),
+    mesContable: val('f_mesContable', state.draft.mesContable),
     contraparte: val('f_contraparte'),
     cuit: sf ? '' : val('f_cuit'),
     numeroComprobante: sf ? '' : val('f_numeroComprobante'),
@@ -1101,10 +1111,17 @@ function attachMesEvents(){
   const categoriaSel = document.getElementById('f_categoria');
   if(categoriaSel) categoriaSel.addEventListener('change', () => { readDraftFromForm(); render(); });
 
-  ['f_neto_sf','f_neto_simple','f_alicuotaSimple','f_percepcionIVA','f_percepcionIIBB','f_otrosTributos','f_total','f_computaIVA'].forEach(id => {
+  ['f_neto_sf','f_neto_simple','f_alicuotaSimple','f_percepcionIVA','f_percepcionIIBB','f_otrosTributos','f_total','f_computaIVA','f_mesContable'].forEach(id => {
     const el = document.getElementById(id);
     if(el) el.addEventListener('change', () => { readDraftFromForm(); render(); });
   });
+
+  const usarMesActual = document.getElementById('usarMesActual');
+  if(usarMesActual) usarMesActual.onclick = () => {
+    readDraftFromForm();
+    state.draft.mesContable = state.monthKey;
+    render();
+  };
 
   document.querySelectorAll('.f_neto_rate, .f_iva_rate').forEach(el => {
     el.addEventListener('change', () => { readDraftFromForm(); render(); });
@@ -1161,14 +1178,15 @@ function attachMesEvents(){
     };
     saveBtn.disabled = true;
     saveBtn.textContent = 'Guardando...';
-    const resultado = await guardarEnMesDeLaFecha(entry);
+    const mesDestino = state.draft.mesContable || fecha.slice(0,7);
+    const resultado = await guardarEnMes(entry, mesDestino);
     state.formOpen = false;
     state.upload = null;
     state.draft = emptyDraft();
     if(!resultado.mismoMes){
       const [y,m] = resultado.mesDestino.split('-').map(Number);
       const label = MONTH_NAMES[m-1] + ' ' + y;
-      alert('Guardado en ' + label + ' (no en el mes que estás viendo), porque es la fecha del comprobante.');
+      alert('Guardado en ' + label + ' (no en el mes que estás viendo).');
     }
     render();
   };
