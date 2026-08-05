@@ -369,6 +369,29 @@ async function saveMonth(){
     });
   }catch(e){ if(e.message !== 'sesión vencida') console.error('Error guardando', e); }
 }
+
+// Guarda un comprobante en el mes que le corresponde por su fecha, aunque sea distinto del mes que estás mirando
+async function guardarEnMesDeLaFecha(entry){
+  const mesDestino = (entry.fecha || '').slice(0,7); // YYYY-MM
+  if(!mesDestino || mesDestino === state.monthKey){
+    state.entries.push(entry);
+    await saveMonth();
+    return { mesDestino: state.monthKey, mismoMes: true };
+  }
+  try{
+    const res = await apiFetch('/api/entries?month=' + encodeURIComponent(mesDestino));
+    const data = await res.json();
+    const entriesDestino = Array.isArray(data.entries) ? data.entries : [];
+    entriesDestino.push(entry);
+    await apiFetch('/api/entries', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ month: mesDestino, entries: entriesDestino })
+    });
+  }catch(e){ if(e.message !== 'sesión vencida') console.error('Error guardando en otro mes', e); }
+  return { mesDestino, mismoMes: false };
+}
+
 function calcTotals(entries){
   let debito = 0, credito = 0, percepcionesIIBB = 0, percepcionesIVA = 0, otrosTributos = 0;
   entries.forEach(e => {
@@ -1136,13 +1159,17 @@ function attachMesEvents(){
       foto: state.upload ? state.upload.thumb : null,
       cargadoPor: state.user
     };
-    state.entries.push(entry);
     saveBtn.disabled = true;
     saveBtn.textContent = 'Guardando...';
-    await saveMonth();
+    const resultado = await guardarEnMesDeLaFecha(entry);
     state.formOpen = false;
     state.upload = null;
     state.draft = emptyDraft();
+    if(!resultado.mismoMes){
+      const [y,m] = resultado.mesDestino.split('-').map(Number);
+      const label = MONTH_NAMES[m-1] + ' ' + y;
+      alert('Guardado en ' + label + ' (no en el mes que estás viendo), porque es la fecha del comprobante.');
+    }
     render();
   };
 
