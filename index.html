@@ -372,21 +372,45 @@ async function saveMonth(){
 }
 
 // Guarda un comprobante en el mes que le corresponde por su fecha, aunque sea distinto del mes que estás mirando
-async function guardarEnMes(entry, mesDestino){
+async function obtenerEntriesDeMes(mesDestino){
+  if(!mesDestino || mesDestino === state.monthKey) return state.entries;
+  try{
+    const res = await apiFetch('/api/entries?month=' + encodeURIComponent(mesDestino));
+    const data = await res.json();
+    return Array.isArray(data.entries) ? data.entries : [];
+  }catch(e){
+    if(e.message !== 'sesión vencida') console.error('Error consultando el mes destino', e);
+    return [];
+  }
+}
+
+// Señal fuerte: mismo CUIT + mismo N° de comprobante. Señal débil (si falta el número): misma contraparte + fecha + neto.
+function buscarPosibleDuplicado(nuevo, existentes){
+  return existentes.find(e => {
+    if(e.tipo !== nuevo.tipo) return false;
+    if(nuevo.numeroComprobante && nuevo.cuit && e.numeroComprobante === nuevo.numeroComprobante && e.cuit === nuevo.cuit){
+      return true;
+    }
+    const mismaContraparte = (e.contraparte||'').trim().toLowerCase() === (nuevo.contraparte||'').trim().toLowerCase();
+    const mismaFecha = e.fecha === nuevo.fecha;
+    const mismoNeto = Math.abs((e.neto||0) - (nuevo.neto||0)) < 1;
+    return mismaContraparte && mismaFecha && mismoNeto && nuevo.contraparte;
+  });
+}
+
+async function guardarEnMes(entry, mesDestino, entriesExistentes){
+  const lista = entriesExistentes || await obtenerEntriesDeMes(mesDestino);
+  lista.push(entry);
   if(!mesDestino || mesDestino === state.monthKey){
-    state.entries.push(entry);
+    state.entries = lista;
     await saveMonth();
     return { mesDestino: state.monthKey, mismoMes: true };
   }
   try{
-    const res = await apiFetch('/api/entries?month=' + encodeURIComponent(mesDestino));
-    const data = await res.json();
-    const entriesDestino = Array.isArray(data.entries) ? data.entries : [];
-    entriesDestino.push(entry);
     await apiFetch('/api/entries', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ month: mesDestino, entries: entriesDestino })
+      body: JSON.stringify({ month: mesDestino, entries: lista })
     });
   }catch(e){ if(e.message !== 'sesión vencida') console.error('Error guardando en otro mes', e); }
   return { mesDestino, mismoMes: false };
@@ -1176,10 +1200,25 @@ function attachMesEvents(){
       foto: state.upload ? state.upload.thumb : null,
       cargadoPor: state.user
     };
-    saveBtn.disabled = true;
-    saveBtn.textContent = 'Guardando...';
     const mesDestino = state.draft.mesContable || fecha.slice(0,7);
-    const resultado = await guardarEnMes(entry, mesDestino);
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Revisando...';
+    const entriesExistentes = await obtenerEntriesDeMes(mesDestino);
+    const duplicado = buscarPosibleDuplicado(entry, entriesExistentes);
+    if(duplicado){
+      const seguir = confirm(
+        'Ya tenés cargado un comprobante parecido:\n' +
+        (duplicado.contraparte || '(sin nombre)') + ' · ' + duplicado.fecha + ' · ' + fmtMoney(duplicado.neto) + '\n\n' +
+        '¿Confirmás que querés cargar este de todas formas?'
+      );
+      if(!seguir){
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Confirmar y guardar';
+        return;
+      }
+    }
+    saveBtn.textContent = 'Guardando...';
+    const resultado = await guardarEnMes(entry, mesDestino, entriesExistentes);
     state.formOpen = false;
     state.upload = null;
     state.draft = emptyDraft();
