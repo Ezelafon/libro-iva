@@ -62,6 +62,11 @@
     background:transparent; color:var(--amber); font-family:'IBM Plex Mono',monospace;
     font-size:13px; cursor:pointer; margin-bottom:16px;
   }
+  .vep-toggle{
+    width:100%; padding:13px; border-radius:8px; border:1.5px dashed var(--pagar);
+    background:var(--amber-dim); color:var(--pagar); font-family:'Space Grotesk',sans-serif; font-weight:600;
+    font-size:13px; cursor:pointer; margin-bottom:16px; letter-spacing:.01em;
+  }
   .form-panel{
     padding:0 0 8px; margin-bottom:16px; display:none;
   }
@@ -223,6 +228,16 @@ const CATEGORIAS = {
   venta: ['Asesoramiento','Control de plagas','Extracción de petróleo y gas','Otro'],
   compra: ['Casa','Alimento e higiene','Transporte','Bienestar','Educación','Impuestos','Otro']
 };
+const ACTIVIDADES_AFIP = [
+  { code:'702099', label:'702099 - Servicios de asesoramiento, dirección y gestión empresarial N.C.P.' },
+  { code:'91000', label:'91000 - Servicios de apoyo para la extracción de petróleo y gas natural' },
+  { code:'16291', label:'16291 - Servicios para el control de plagas, baños parasiticidas, etc.' }
+];
+const CATEGORIA_A_ACTIVIDAD = {
+  'Asesoramiento': '702099',
+  'Extracción de petróleo y gas': '91000',
+  'Control de plagas': '16291'
+};
 const emptyDraft = () => ({
   fecha: new Date().toISOString().slice(0,10),
   mesContable: new Date().toISOString().slice(0,7),
@@ -230,8 +245,11 @@ const emptyDraft = () => ({
   netos: {21:{neto:'',iva:''}, '10.5':{neto:'',iva:''}, 27:{neto:'',iva:''}, 0:{neto:'',iva:''}},
   alicuotaSimple: 21, detalleAbierto: false,
   percepcionIVA:'', percepcionIIBB:'', otrosTributos:'', total:'',
-  categoria:'', computaIVA:true, dudosos:[]
+  categoria:'', actividad:'', computaIVA:true, dudosos:[]
 });
+function emptyVepDraft(){
+  return { impuesto:'IVA', signo:'pagar', monto:'', numeroVEP:'', fechaVencimiento: new Date().toISOString().slice(0,10) };
+}
 function ivaDeRenglon(rate, r){
   const neto = parseFloat(r && r.neto) || 0;
   const ivaLeido = parseFloat(r && r.iva) || 0;
@@ -252,6 +270,12 @@ let state = {
   user: null,
   authChecking: true,
   authError: '',
+  viewingEntryId: null,
+  optionsOpen: false,
+  vepFormOpen: false,
+  vepUpload: null,
+  vepUploadError: '',
+  vepDraft: emptyVepDraft(),
   monthKey: currentMonthKey(),
   entries: [],
   formOpen: false,
@@ -347,17 +371,22 @@ async function apiFetch(url, options){
   return res;
 }
 
+let loadMonthToken = 0;
 async function loadMonth(key){
+  const myToken = ++loadMonthToken; // identifica este pedido puntual
   state.loading = true;
   render();
   try{
     const res = await apiFetch('/api/entries?month=' + encodeURIComponent(key));
     const data = await res.json();
+    if(myToken !== loadMonthToken) return; // llegó una respuesta vieja fuera de orden: se descarta
     state.entries = Array.isArray(data.entries) ? data.entries : [];
   }catch(e){
+    if(myToken !== loadMonthToken) return;
     if(e.message !== 'sesión vencida'){ console.error(e); state.entries = []; }
     return;
   }
+  if(myToken !== loadMonthToken) return;
   state.loading = false;
   render();
 }
@@ -481,7 +510,23 @@ function scanCleanup(ctx, width, height){
   ctx.putImageData(imgData, 0, 0);
 }
 
-function resizeImage(file, maxDim = 900, quality = 0.7){
+function drawScaled(img, maxDim, quality, cleanup){
+  let {width, height} = img;
+  if(width > maxDim || height > maxDim){
+    if(width > height){ height = Math.round(height * maxDim / width); width = maxDim; }
+    else { width = Math.round(width * maxDim / height); height = maxDim; }
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, width, height);
+  if(cleanup) scanCleanup(ctx, width, height);
+  return canvas.toDataURL('image/jpeg', quality);
+}
+
+// Procesa la foto UNA sola vez y genera dos versiones: una para mandarle a la IA (moderada, liviana = más rápido)
+// y una miniatura chica para guardar y mostrar en la lista (no hace falta que sea grande, se ve a 32px).
+function processPhoto(file){
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
@@ -489,21 +534,12 @@ function resizeImage(file, maxDim = 900, quality = 0.7){
       const img = new Image();
       img.onerror = () => reject(new Error('No se pudo procesar la imagen'));
       img.onload = () => {
-        let {width, height} = img;
-        if(width > maxDim || height > maxDim){
-          if(width > height){ height = Math.round(height * maxDim / width); width = maxDim; }
-          else { width = Math.round(width * maxDim / height); height = maxDim; }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width; canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
         try{
-          scanCleanup(ctx, width, height); // blanco y negro prolijo, tipo app de escaneo
-          const dataUrl = canvas.toDataURL('image/jpeg', quality);
-          resolve(dataUrl);
+          const uploadDataUrl = drawScaled(img, 1400, 0.85, false); // para la IA: sin efecto escáner, buena nitidez
+          const thumbDataUrl = drawScaled(img, 160, 0.6, true); // para la lista: chica y liviana, con efecto escáner
+          resolve({ uploadDataUrl, thumbDataUrl });
         }catch(e){
-          reject(new Error('No se pudo comprimir la imagen'));
+          reject(new Error('No se pudo procesar la imagen'));
         }
       };
       img.src = reader.result;
@@ -524,13 +560,20 @@ function fileToBase64(file){
 async function attachPhoto(file){
   try{
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-    const thumb = isPdf ? 'PDF' : await resizeImage(file);
+    let thumb, uploadDataUrl;
+    if(isPdf){
+      thumb = 'PDF';
+    }else{
+      const processed = await processPhoto(file);
+      thumb = processed.thumbDataUrl;
+      uploadDataUrl = processed.uploadDataUrl;
+    }
     state.upload = {thumb, isPdf, status: 'analyzing'};
     state.formOpen = true;
     render();
 
-    const base64 = await fileToBase64(file);
-    const mediaType = isPdf ? 'application/pdf' : (file.type || 'image/jpeg');
+    const base64 = isPdf ? await fileToBase64(file) : uploadDataUrl.split(',')[1];
+    const mediaType = isPdf ? 'application/pdf' : 'image/jpeg';
     const response = await fetch('/api/analyze', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -577,6 +620,7 @@ async function attachPhoto(file){
       otrosTributos: parsed.otrosTributos ?? '',
       total: parsed.total ?? '',
       categoria: catValida,
+      actividad: (state.tipo === 'venta' && CATEGORIA_A_ACTIVIDAD[catValida]) ? CATEGORIA_A_ACTIVIDAD[catValida] : '',
       computaIVA: true,
       dudosos: Array.isArray(parsed.dudosos) ? parsed.dudosos : []
     };
@@ -589,18 +633,62 @@ async function attachPhoto(file){
   render();
 }
 
+async function attachPhotoVep(file){
+  try{
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    let thumb, uploadDataUrl;
+    if(isPdf){
+      thumb = 'PDF';
+    }else{
+      const processed = await processPhoto(file);
+      thumb = processed.thumbDataUrl;
+      uploadDataUrl = processed.uploadDataUrl;
+    }
+    state.vepUpload = {thumb, isPdf, status: 'analyzing'};
+    state.vepFormOpen = true;
+    render();
+
+    const base64 = isPdf ? await fileToBase64(file) : uploadDataUrl.split(',')[1];
+    const mediaType = isPdf ? 'application/pdf' : 'image/jpeg';
+    const response = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ imageBase64: base64, mediaType, isPdf, docType: 'vep' })
+    });
+    const parsed = await response.json();
+
+    if(!response.ok || parsed.error){
+      throw new Error(parsed.error || 'No se pudo leer el VEP');
+    }
+
+    state.vepDraft = {
+      impuesto: (parsed.impuesto === 'IIBB') ? 'IIBB' : 'IVA',
+      signo: parsed.esAFavor ? 'favor' : 'pagar',
+      monto: parsed.monto ?? '',
+      numeroVEP: parsed.numeroVEP || '',
+      fechaVencimiento: parsed.fechaVencimiento || new Date().toISOString().slice(0,10)
+    };
+    state.vepUpload.status = 'done';
+  }catch(e){
+    console.error(e);
+    if(state.vepUpload) state.vepUpload.status = 'error';
+    state.vepUploadError = e.message || 'No se pudo leer el VEP. Completá los campos a mano.';
+  }
+  render();
+}
+
 function render(){
   const app = document.getElementById('app');
 
   if(state.authChecking){
-    app.innerHTML = `<header><div class="eyebrow">Libro IVA</div><h1>Parciales mensuales</h1></header><div class="empty">Cargando...</div>`;
+    app.innerHTML = `<header><div class="eyebrow">Contable</div><h1>Parciales mensuales</h1></header><div class="empty">Cargando...</div>`;
     return;
   }
 
   if(!state.user){
     app.innerHTML = `
       <header>
-        <div class="eyebrow">Libro IVA</div>
+        <div class="eyebrow">Contable</div>
         <h1>Parciales mensuales</h1>
       </header>
       <div class="dash-card" style="margin-top:20px;">
@@ -645,14 +733,19 @@ function render(){
   }
 
   app.innerHTML = `
-    <header style="display:flex; justify-content:space-between; align-items:flex-start;">
+    <header style="display:flex; justify-content:space-between; align-items:flex-start; position:relative;">
       <div>
-        <div class="eyebrow">Libro IVA</div>
+        <div class="eyebrow">Contable</div>
         <h1>Parciales mensuales</h1>
       </div>
-      <div style="text-align:right;">
+      <div style="text-align:right; position:relative;">
         <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">${state.user}</div>
-        <button id="logoutBtn" style="background:none; border:1px solid var(--line); color:var(--muted); border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer; font-family:'IBM Plex Mono',monospace;">Salir</button>
+        <button id="optionsBtn" style="background:none; border:1px solid var(--line); color:var(--muted); border-radius:6px; padding:4px 9px; cursor:pointer; font-size:14px; line-height:1;">⋯</button>
+        ${state.optionsOpen ? `
+        <div id="optionsMenu" style="position:absolute; top:32px; right:0; background:var(--input); border:1px solid var(--line); border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,0.12); overflow:hidden; z-index:50; min-width:150px;">
+          <button id="optConfig" style="display:block; width:100%; text-align:left; padding:10px 14px; background:none; border:none; color:var(--faint); font-size:12.5px; cursor:not-allowed; font-family:'IBM Plex Mono',monospace;">Configuración</button>
+          <button id="optSalir" style="display:block; width:100%; text-align:left; padding:10px 14px; background:none; border:none; border-top:1px solid var(--line); color:var(--pagar); font-size:12.5px; cursor:pointer; font-family:'IBM Plex Mono',monospace;">Salir</button>
+        </div>` : ''}
       </div>
     </header>
     <div class="view-tabs">
@@ -660,6 +753,7 @@ function render(){
       <button class="${state.view==='dashboard'?'active':''}" id="tabDashboard">📊 Dashboard</button>
     </div>
     ${state.view === 'dashboard' ? renderDashboardHTML() : renderMesHTML()}
+    ${renderDetailModal()}
   `;
   document.getElementById('tabMes').onclick = () => { state.view = 'mes'; render(); };
   document.getElementById('tabDashboard').onclick = () => {
@@ -667,15 +761,90 @@ function render(){
     render();
     loadDashboard();
   };
-  document.getElementById('logoutBtn').onclick = async () => {
-    try{ await fetch('/api/logout', {method:'POST'}); }catch(e){}
-    state.user = null;
+  document.getElementById('optionsBtn').onclick = (ev) => {
+    ev.stopPropagation();
+    state.optionsOpen = !state.optionsOpen;
     render();
   };
+  if(state.optionsOpen){
+    document.getElementById('optSalir').onclick = async () => {
+      try{ await fetch('/api/logout', {method:'POST'}); }catch(e){}
+      state.user = null;
+      state.optionsOpen = false;
+      render();
+    };
+    document.addEventListener('click', function closeMenu(){
+      state.optionsOpen = false;
+      render();
+      document.removeEventListener('click', closeMenu);
+    }, { once:true });
+  }
+
+  const modalClose = document.getElementById('detailModalClose');
+  if(modalClose) modalClose.onclick = () => { state.viewingEntryId = null; render(); };
+  const modalBackdrop = document.getElementById('detailModalBackdrop');
+  if(modalBackdrop) modalBackdrop.onclick = (ev) => { if(ev.target === modalBackdrop){ state.viewingEntryId = null; render(); } };
 
   if(state.view === 'mes') attachMesEvents();
   else attachDashboardEvents();
   drawCharts();
+}
+
+function renderDetailModal(){
+  if(!state.viewingEntryId) return '';
+  const e = state.entries.find(x => x.id === state.viewingEntryId);
+  if(!e) return '';
+
+  if(e.tipo === 'vep'){
+    return `
+      <div id="detailModalBackdrop" style="position:fixed; inset:0; background:rgba(22,24,27,0.5); z-index:100; display:flex; align-items:flex-end; justify-content:center;">
+        <div style="background:var(--input); width:100%; max-width:520px; border-radius:16px 16px 0 0; padding:20px 18px 28px; max-height:85vh; overflow-y:auto;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <div class="eyebrow">Detalle del VEP</div>
+            <button id="detailModalClose" style="background:none; border:none; font-size:20px; color:var(--muted); cursor:pointer;">✕</button>
+          </div>
+          ${e.foto && e.foto !== 'PDF' ? `<img src="${e.foto}" style="width:100%; max-height:180px; object-fit:contain; border-radius:8px; margin-bottom:14px; background:var(--bg);">` : ''}
+          <div class="subrow" style="margin-top:0; padding-top:0; border-top:none;"><div>Impuesto</div><span>${e.impuesto || '—'}</span></div>
+          <div class="subrow"><div>Monto</div><span>${fmtMoney(e.monto || 0)} · ${e.signo==='favor'?'a favor':'a pagar'}</span></div>
+          <div class="subrow"><div>N° de VEP</div><span>${e.numeroVEP || '—'}</span></div>
+          <div class="subrow"><div>Fecha de vencimiento</div><span>${e.fechaVencimiento || e.fecha}</span></div>
+          ${e.cargadoPor ? `<div class="subrow"><div>Cargado por</div><span>${e.cargadoPor}</span></div>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  const netosRows = e.netos ? Object.entries(e.netos).map(([rate, r]) => `
+    <div class="subrow"><div>Neto ${rate}%</div><span>${fmtMoney(r.neto)} · IVA ${fmtMoney(r.iva)}</span></div>
+  `).join('') : '';
+  return `
+    <div id="detailModalBackdrop" style="position:fixed; inset:0; background:rgba(22,24,27,0.5); z-index:100; display:flex; align-items:flex-end; justify-content:center;">
+      <div style="background:var(--input); width:100%; max-width:520px; border-radius:16px 16px 0 0; padding:20px 18px 28px; max-height:85vh; overflow-y:auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <div class="eyebrow">Detalle del comprobante</div>
+          <button id="detailModalClose" style="background:none; border:none; font-size:20px; color:var(--muted); cursor:pointer;">✕</button>
+        </div>
+        ${e.foto && e.foto !== 'PDF' ? `<img src="${e.foto}" style="width:100%; max-height:180px; object-fit:contain; border-radius:8px; margin-bottom:14px; background:var(--bg);">` : ''}
+        <div class="subrow" style="margin-top:0; padding-top:0; border-top:none;"><div>Tipo</div><span>${e.tipo === 'venta' ? 'Venta' : 'Compra'} · ${TIPO_COMPROBANTE_LABEL[e.tipoComprobante] || 'Factura A'}</span></div>
+        <div class="subrow"><div>Fecha</div><span>${e.fecha}</span></div>
+        <div class="subrow"><div>${e.tipo === 'venta' ? 'Cliente' : 'Proveedor'}</div><span>${e.contraparte || '—'}</span></div>
+        <div class="subrow"><div>CUIT</div><span>${e.cuit || '—'}</span></div>
+        <div class="subrow"><div>N° comprobante</div><span>${e.numeroComprobante || '—'}</span></div>
+        <div class="subrow"><div>Categoría</div><span>${e.categoria || '—'}</span></div>
+        ${e.actividad ? `<div class="subrow"><div>Actividad ARCA</div><span>${(ACTIVIDADES_AFIP.find(a=>a.code===e.actividad)||{}).label || e.actividad}</span></div>` : ''}
+        ${netosRows}
+        <div class="subrow"><div>Neto total</div><span>${fmtMoney(e.neto)}</span></div>
+        <div class="subrow"><div>IVA total</div><span>${fmtMoney(e.iva)}</span></div>
+        ${e.percepcionIVA ? `<div class="subrow"><div>Percepción IVA</div><span>${fmtMoney(e.percepcionIVA)}</span></div>` : ''}
+        ${e.percepcionIIBB ? `<div class="subrow"><div>Percepción IIBB</div><span>${fmtMoney(e.percepcionIIBB)}</span></div>` : ''}
+        ${e.otrosTributos ? `<div class="subrow"><div>Otros tributos</div><span>${fmtMoney(e.otrosTributos)}</span></div>` : ''}
+        ${e.total ? `<div class="subrow"><div>Total comprobante</div><span>${fmtMoney(e.total)}</span></div>` : ''}
+        <div class="subrow"><div>Computa ARCA</div><span>${e.computaIVA !== false ? 'Sí' : 'No'}</span></div>
+        ${e.cargadoPor ? `<div class="subrow"><div>Cargado por</div><span>${e.cargadoPor}</span></div>` : ''}
+        ${e.dudoso ? `<div class="subrow"><div>Estado</div><span style="color:var(--amber);">⚠ Marcado como dudoso</span></div>` : ''}
+      </div>
+    </div>
+  `;
 }
 
 function renderMesHTML(){
@@ -712,16 +881,68 @@ function renderMesHTML(){
         <span>Crédito (compras) ${fmtMoney(t.credito)}</span>
       </div>
       <div class="subrow">
-        <div>Percepciones IVA sufridas <span style="display:block;">(pago a cuenta del IVA)</span></div>
+        <div>Percepciones IVA sufridas</div>
         <span>${fmtMoney(t.percepcionesIVA)}</span>
       </div>
       <div class="subrow">
-        <div>Percepciones IIBB sufridas <span style="display:block;">(compensan contra IIBB, no IVA)</span></div>
+        <div>Percepciones IIBB sufridas</div>
         <span>${fmtMoney(t.percepcionesIIBB)}</span>
       </div>
     </div>
 
     <button class="add-toggle" id="toggleForm">${state.formOpen ? '– Cerrar' : '+ Cargar comprobante'}</button>
+
+    <button class="vep-toggle" id="toggleVep">${state.vepFormOpen ? '– Cerrar' : '= Cierre Mes (VEP)'}</button>
+
+    <div class="form-panel ${state.vepFormOpen ? 'open' : ''}" id="vepPanel">
+      ${!state.vepUpload ? `
+        <div class="upload-area" id="vepUploadArea">
+          <div class="icon">📷</div>
+          <div class="label">Tocá para sacar foto o elegir el VEP (imagen o PDF)</div>
+        </div>
+        <div class="divider-or">o cargá los datos a mano</div>
+      ` : `
+        <div class="upload-thumb">
+          ${state.vepUpload.isPdf
+            ? '<div style="width:48px;height:48px;border-radius:6px;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted);flex-shrink:0;">PDF</div>'
+            : `<img src="${state.vepUpload.thumb}">`}
+          <div class="status ${state.vepUpload.status}">
+            ${state.vepUpload.status==='analyzing' ? '<span class="spinner"></span>Leyendo VEP...' : ''}
+            ${state.vepUpload.status==='done' ? 'Listo — revisá y confirmá los campos' : ''}
+            ${state.vepUpload.status==='error' ? (state.vepUploadError || 'No se pudo leer, completá a mano') : ''}
+          </div>
+          <button id="vepRetakePhoto">✕</button>
+        </div>
+      `}
+      <input type="file" id="vepFileInput" accept="image/*,application/pdf,.pdf" style="display:none;">
+
+      <div class="tipo-toggle mini-toggle">
+        <button data-impuesto="IVA" class="${state.vepDraft.impuesto==='IVA'?'active':''}">IVA</button>
+        <button data-impuesto="IIBB" class="${state.vepDraft.impuesto==='IIBB'?'active':''}">IIBB</button>
+      </div>
+      <div class="tipo-toggle mini-toggle" style="margin-top:8px;">
+        <button data-signo="pagar" class="${state.vepDraft.signo==='pagar'?'active':''}">Monto a pagar</button>
+        <button data-signo="favor" class="${state.vepDraft.signo==='favor'?'active':''}">Monto a favor</button>
+      </div>
+
+      <div class="field" style="margin-top:12px;">
+        <label>Monto</label>
+        <input type="number" step="0.01" id="f_vepMonto" placeholder="0.00" value="${state.vepDraft.monto}">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>N° de VEP</label>
+          <input type="text" id="f_vepNumero" placeholder="Ej: 123456789" value="${state.vepDraft.numeroVEP}">
+        </div>
+        <div class="field">
+          <label>Fecha de vencimiento</label>
+          <input type="date" id="f_vepFecha" value="${state.vepDraft.fechaVencimiento}">
+        </div>
+      </div>
+
+      <button class="save-btn" style="background:var(--pagar);" id="saveVep">Confirmar y guardar</button>
+      <button class="cancel-btn" id="cancelVep">Cancelar</button>
+    </div>
 
     <div class="form-panel ${state.formOpen ? 'open' : ''}" id="formPanel">
       <div class="tipo-toggle">
@@ -788,6 +1009,15 @@ function renderMesHTML(){
           ${CATEGORIAS[state.tipo].map(c => `<option value="${c}" ${c===d.categoria?'selected':''}>${c}</option>`).join('')}
         </select>
       </div>
+      ${state.tipo === 'venta' ? `
+      <div class="field">
+        <label>Actividad (ARCA)</label>
+        <select id="f_actividad">
+          <option value="">— Elegir —</option>
+          ${ACTIVIDADES_AFIP.map(a => `<option value="${a.code}" ${a.code===d.actividad?'selected':''}>${a.label}</option>`).join('')}
+        </select>
+      </div>
+      ` : ''}
       ${sf ? `
       <div class="field ${isDoubt('neto')?'doubt':''}">
         <label>Monto ${isDoubt('neto')?'<span class="doubt-flag">●</span>':''}</label>
@@ -877,14 +1107,30 @@ function renderMesHTML(){
       <div class="section-title" style="margin-bottom:0;">Comprobantes del mes (${state.entries.length})</div>
       ${state.entries.length > 0 ? `<button class="cancel-btn" style="width:auto; margin-top:0; padding:6px 10px;" id="exportCsv">⬇ Excel</button>` : ''}
     </div>
-    ${state.loading ? '<div class="empty">Cargando...</div>' : (sorted.length === 0 ? '<div class="empty">Todavía no cargaste comprobantes este mes.</div>' : sorted.map(e => `
-      <div class="entry">
+    ${state.loading ? '<div class="empty">Cargando...</div>' : (sorted.length === 0 ? '<div class="empty">Todavía no cargaste comprobantes este mes.</div>' : sorted.map(e => e.tipo === 'vep' ? `
+      <div class="entry" data-view-detail="${e.id}" style="cursor:pointer; border-left:3px solid var(--pagar); padding-left:8px;">
+        <div class="entry-left">
+          <div class="tipo-dot" style="background:var(--pagar);"></div>
+          <div class="entry-info">
+            <div class="entry-name">VEP ${e.impuesto || ''}${e.numeroVEP ? ' · N° ' + e.numeroVEP : ''}</div>
+            <div class="entry-meta">${e.fecha} · vence ${e.fechaVencimiento || e.fecha} · ${e.signo==='favor'?'a favor':'a pagar'}${e.cargadoPor ? ' · cargó ' + e.cargadoPor : ''}</div>
+          </div>
+        </div>
+        <div class="entry-right">
+          <div>
+            <div class="entry-amount">${fmtMoney(e.monto || 0)}</div>
+          </div>
+          <button class="entry-del" data-id="${e.id}">✕</button>
+        </div>
+      </div>
+    ` : `
+      <div class="entry" data-view-detail="${e.id}" style="cursor:pointer;">
         <div class="entry-left">
           <div class="tipo-dot ${e.tipo}"></div>
           ${e.foto && e.foto !== 'PDF' ? `<img src="${e.foto}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;flex-shrink:0;">` : (e.foto === 'PDF' ? '<div style="width:32px;height:32px;border-radius:6px;background:var(--input);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--muted);flex-shrink:0;">PDF</div>' : '')}
           <div class="entry-info">
             <div class="entry-name">${e.contraparte || '(sin nombre)'}${e.dudoso ? '<span class="doubt-dot"></span>' : ''}</div>
-            <div class="entry-meta">${e.fecha} · ${TIPO_COMPROBANTE_LABEL[e.tipoComprobante] || 'Factura A'}${e.tipoComprobante!=='SF' ? ' · ' + (e.alicuota != null ? e.alicuota + '%' : (e.netos ? Object.keys(e.netos).length + ' alícuotas' : '')) : ''} · ${fmtMoney(e.neto)}${e.categoria ? ' · ' + e.categoria : ''}${e.cargadoPor ? ' · cargó ' + e.cargadoPor : ''}</div>
+            <div class="entry-meta">${e.fecha} · ${TIPO_COMPROBANTE_LABEL[e.tipoComprobante] || 'Factura A'}${e.tipoComprobante!=='SF' ? ' · ' + (e.alicuota != null ? e.alicuota + '%' : (e.netos ? Object.keys(e.netos).length + ' alícuotas' : '')) : ''} · ${fmtMoney(e.neto)}${e.categoria ? ' · ' + e.categoria : ''}${e.actividad ? ' · act. ' + e.actividad : ''}${e.cargadoPor ? ' · cargó ' + e.cargadoPor : ''}</div>
           </div>
         </div>
         <div class="entry-right">
@@ -917,7 +1163,7 @@ function renderDashboardHTML(){
 
   function sumaIG(entries){
     let facturado=0, gastado=0;
-    entries.forEach(e => { const m = montoFlujo(e); if(e.tipo==='venta') facturado += m; else gastado += m; });
+    entries.forEach(e => { if(e.tipo==='vep') return; const m = montoFlujo(e); if(e.tipo==='venta') facturado += m; else gastado += m; });
     return {facturado, gastado};
   }
   const ig = sumaIG(entriesLens);
@@ -926,7 +1172,7 @@ function renderDashboardHTML(){
   const monthly = monthKeysOfYear.map(k => {
     const es = (allMonths[k] || []).filter(e => lens==='arca' ? e.computaIVA !== false : true);
     let venta = 0, compra = 0;
-    es.forEach(e => { const m = montoFlujo(e); if(e.tipo === 'venta') venta += m; else compra += m; });
+    es.forEach(e => { if(e.tipo==='vep') return; const m = montoFlujo(e); if(e.tipo === 'venta') venta += m; else compra += m; });
     return {venta, compra};
   });
 
@@ -1055,6 +1301,7 @@ function readDraftFromForm(){
     otrosTributos: sf ? '' : val('f_otrosTributos'),
     total: sf ? '' : val('f_total'),
     categoria: val('f_categoria'),
+    actividad: state.tipo === 'venta' ? val('f_actividad') : '',
     computaIVA: sf ? false : (document.getElementById('f_computaIVA') ? document.getElementById('f_computaIVA').checked : true),
     dudosos: state.draft.dudosos
   };
@@ -1076,17 +1323,33 @@ function attachDashboardEvents(){
 }
 
 function exportarExcel(){
-  const headers = ['Fecha','Tipo','Contraparte','Categoría','Neto','IVA','Total','Computa ARCA'];
-  const filas = state.entries.map(e => [
-    e.fecha,
-    e.tipo === 'venta' ? 'Venta' : 'Compra',
-    e.contraparte,
-    e.categoria || '',
-    e.neto.toFixed(2),
-    e.iva.toFixed(2),
-    (e.neto + e.iva).toFixed(2),
-    e.computaIVA !== false ? 'Sí' : 'No'
-  ]);
+  const headers = ['Fecha','Tipo','Contraparte','CUIT','N° Comprobante','Categoría','Actividad ARCA','Neto','IVA','Total','Computa ARCA'];
+  const filas = state.entries.map(e => {
+    if(e.tipo === 'vep'){
+      return [
+        e.fechaVencimiento || e.fecha,
+        'VEP ' + (e.impuesto || ''),
+        e.numeroVEP ? 'N° ' + e.numeroVEP : '',
+        '', '', '', '',
+        '0.00', '0.00',
+        (e.signo==='favor' ? '-' : '') + (e.monto || 0).toFixed(2),
+        ''
+      ];
+    }
+    return [
+      e.fecha,
+      e.tipo === 'venta' ? 'Venta' : 'Compra',
+      e.contraparte,
+      e.cuit || '',
+      e.numeroComprobante || '',
+      e.categoria || '',
+      e.actividad || '',
+      e.neto.toFixed(2),
+      e.iva.toFixed(2),
+      (e.neto + e.iva).toFixed(2),
+      e.computaIVA !== false ? 'Sí' : 'No'
+    ];
+  });
   const csvEscape = (v) => /[",;\n]/.test(v) ? '"' + String(v).replace(/"/g,'""') + '"' : v;
   const csv = [headers, ...filas].map(row => row.map(csvEscape).join(';')).join('\r\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -1116,7 +1379,7 @@ function attachMesEvents(){
   const cancelBtn = document.getElementById('cancelEntry');
   if(cancelBtn) cancelBtn.onclick = () => { state.formOpen = false; state.upload = null; state.draft = emptyDraft(); render(); };
 
-  document.querySelectorAll('.tipo-toggle button').forEach(btn => {
+  document.querySelectorAll('.tipo-toggle:not(.mini-toggle) button').forEach(btn => {
     btn.onclick = () => {
       if(document.getElementById('f_fecha')) readDraftFromForm();
       state.tipo = btn.dataset.tipo;
@@ -1129,11 +1392,88 @@ function attachMesEvents(){
   const uploadArea = document.getElementById('uploadArea');
   if(uploadArea) uploadArea.onclick = () => document.getElementById('fileInput').click();
 
+  const toggleVepBtn = document.getElementById('toggleVep');
+  if(toggleVepBtn) toggleVepBtn.onclick = () => {
+    state.vepFormOpen = !state.vepFormOpen;
+    if(!state.vepFormOpen){ state.vepUpload = null; state.vepDraft = emptyVepDraft(); }
+    render();
+  };
+  const cancelVepBtn = document.getElementById('cancelVep');
+  if(cancelVepBtn) cancelVepBtn.onclick = () => { state.vepFormOpen = false; state.vepUpload = null; state.vepDraft = emptyVepDraft(); render(); };
+
+  const vepUploadArea = document.getElementById('vepUploadArea');
+  if(vepUploadArea) vepUploadArea.onclick = () => document.getElementById('vepFileInput').click();
+  const vepFileInput = document.getElementById('vepFileInput');
+  if(vepFileInput) vepFileInput.addEventListener('change', (ev) => {
+    const file = ev.target.files[0];
+    if(file) attachPhotoVep(file);
+    ev.target.value = '';
+  });
+  const vepRetake = document.getElementById('vepRetakePhoto');
+  if(vepRetake) vepRetake.onclick = () => { state.vepUpload = null; render(); };
+
+  document.querySelectorAll('.mini-toggle button[data-impuesto]').forEach(btn => {
+    btn.onclick = () => { state.vepDraft.impuesto = btn.dataset.impuesto; render(); };
+  });
+  document.querySelectorAll('.mini-toggle button[data-signo]').forEach(btn => {
+    btn.onclick = () => { state.vepDraft.signo = btn.dataset.signo; render(); };
+  });
+
+  const saveVepBtn = document.getElementById('saveVep');
+  if(saveVepBtn) saveVepBtn.onclick = async () => {
+    const monto = parseFloat(document.getElementById('f_vepMonto').value) || 0;
+    const numeroVEP = document.getElementById('f_vepNumero').value.trim();
+    const fechaVencimiento = document.getElementById('f_vepFecha').value;
+    if(monto <= 0){ alert('Ingresá el monto.'); return; }
+    if(!fechaVencimiento){ alert('Ingresá la fecha de vencimiento.'); return; }
+
+    const entry = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      tipo: 'vep',
+      impuesto: state.vepDraft.impuesto,
+      signo: state.vepDraft.signo,
+      monto,
+      neto: 0, iva: 0, // compatibilidad con listas/exports que esperan estos campos
+      numeroVEP,
+      fecha: fechaVencimiento,
+      fechaVencimiento,
+      cargadoPor: state.user,
+      foto: state.vepUpload ? state.vepUpload.thumb : null
+    };
+
+    saveVepBtn.disabled = true;
+    saveVepBtn.textContent = 'Guardando...';
+    const mesDestino = fechaVencimiento.slice(0,7);
+    const entriesExistentes = await obtenerEntriesDeMes(mesDestino);
+    const dup = entriesExistentes.find(x => x.tipo === 'vep' && numeroVEP && x.numeroVEP === numeroVEP);
+    if(dup){
+      const seguir = confirm('Ya tenés cargado un VEP con el número ' + numeroVEP + '. ¿Confirmás que querés cargarlo de todas formas?');
+      if(!seguir){ saveVepBtn.disabled = false; saveVepBtn.textContent = 'Confirmar y guardar'; return; }
+    }
+    const resultado = await guardarEnMes(entry, mesDestino, entriesExistentes);
+    state.vepFormOpen = false;
+    state.vepUpload = null;
+    state.vepDraft = emptyVepDraft();
+    if(!resultado.mismoMes){
+      const [y,m] = resultado.mesDestino.split('-').map(Number);
+      alert('Guardado en ' + MONTH_NAMES[m-1] + ' ' + y + ' (no en el mes que estás viendo).');
+    }
+    render();
+  };
+
   const tipoComprobanteSel = document.getElementById('f_tipoComprobante');
   if(tipoComprobanteSel) tipoComprobanteSel.addEventListener('change', () => { readDraftFromForm(); render(); });
 
   const categoriaSel = document.getElementById('f_categoria');
-  if(categoriaSel) categoriaSel.addEventListener('change', () => { readDraftFromForm(); render(); });
+  if(categoriaSel) categoriaSel.addEventListener('change', () => {
+    readDraftFromForm();
+    if(state.tipo === 'venta' && CATEGORIA_A_ACTIVIDAD[state.draft.categoria] && !state.draft.actividad){
+      state.draft.actividad = CATEGORIA_A_ACTIVIDAD[state.draft.categoria];
+    }
+    render();
+  });
+  const actividadSel = document.getElementById('f_actividad');
+  if(actividadSel) actividadSel.addEventListener('change', () => { readDraftFromForm(); render(); });
 
   ['f_neto_sf','f_neto_simple','f_alicuotaSimple','f_percepcionIVA','f_percepcionIIBB','f_otrosTributos','f_total','f_computaIVA','f_mesContable'].forEach(id => {
     const el = document.getElementById(id);
@@ -1190,6 +1530,7 @@ function attachMesEvents(){
       numeroComprobante: state.draft.numeroComprobante.trim(),
       cuit: state.draft.cuit.trim(),
       categoria: state.draft.categoria,
+      actividad: state.tipo === 'venta' ? state.draft.actividad : '',
       fecha, contraparte,
       netos: sf ? undefined : netosLimpios,
       neto, iva,
@@ -1231,7 +1572,8 @@ function attachMesEvents(){
   };
 
   document.querySelectorAll('.entry-del').forEach(btn => {
-    btn.onclick = async () => {
+    btn.onclick = async (ev) => {
+      ev.stopPropagation();
       state.entries = state.entries.filter(e => e.id !== btn.dataset.id);
       await saveMonth();
       render();
@@ -1239,11 +1581,19 @@ function attachMesEvents(){
   });
 
   document.querySelectorAll('[data-toggle-arca]').forEach(btn => {
-    btn.onclick = async () => {
+    btn.onclick = async (ev) => {
+      ev.stopPropagation();
       const entry = state.entries.find(e => e.id === btn.dataset.id);
       if(!entry) return;
       entry.computaIVA = entry.computaIVA === false ? true : false;
       await saveMonth();
+      render();
+    };
+  });
+
+  document.querySelectorAll('[data-view-detail]').forEach(row => {
+    row.onclick = () => {
+      state.viewingEntryId = row.dataset.viewDetail;
       render();
     };
   });
