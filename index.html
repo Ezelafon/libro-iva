@@ -272,6 +272,7 @@ let state = {
   authError: '',
   viewingEntryId: null,
   optionsOpen: false,
+  configOpen: false,
   vepFormOpen: false,
   vepUpload: null,
   vepUploadError: '',
@@ -401,6 +402,49 @@ async function saveMonth(){
 }
 
 // Guarda un comprobante en el mes que le corresponde por su fecha, aunque sea distinto del mes que estás mirando
+async function reorganizarPorFecha(){
+  const ok = confirm('Esto revisa TODOS los comprobantes guardados (de todos los meses) y los mueve al mes que corresponde según su fecha (o fecha de vencimiento en el caso de los VEP). Puede tardar unos segundos.\n\n¿Continuar?');
+  if(!ok) return;
+
+  const allMonths = await loadAllMonths();
+  const reorganizado = {};
+  let movidos = 0;
+
+  Object.entries(allMonths).forEach(([monthKey, entries]) => {
+    entries.forEach(e => {
+      const fechaRef = e.tipo === 'vep' ? (e.fechaVencimiento || e.fecha) : e.fecha;
+      const mesCorrecto = (fechaRef || '').slice(0,7) || monthKey;
+      if(!reorganizado[mesCorrecto]) reorganizado[mesCorrecto] = [];
+      reorganizado[mesCorrecto].push(e);
+      if(mesCorrecto !== monthKey) movidos++;
+    });
+  });
+
+  if(movidos === 0){
+    alert('Ya estaba todo en el mes correcto, no había nada para mover.');
+    return;
+  }
+
+  const okFinal = confirm('Se van a mover ' + movidos + ' comprobante(s) al mes que les corresponde. Esta acción no se puede deshacer. ¿Confirmás?');
+  if(!okFinal) return;
+
+  const monthsAGuardar = new Set([...Object.keys(allMonths), ...Object.keys(reorganizado)]);
+  for(const mk of monthsAGuardar){
+    const entries = reorganizado[mk] || [];
+    try{
+      await apiFetch('/api/entries', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ month: mk, entries })
+      });
+    }catch(e){ console.error('Error guardando mes ' + mk, e); }
+  }
+
+  alert('Listo, se movieron ' + movidos + ' comprobante(s) al mes correcto.');
+  state.configOpen = false;
+  await loadMonth(state.monthKey);
+}
+
 async function obtenerEntriesDeMes(mesDestino){
   if(!mesDestino || mesDestino === state.monthKey) return state.entries;
   try{
@@ -743,7 +787,7 @@ function render(){
         <button id="optionsBtn" style="background:none; border:1px solid var(--line); color:var(--muted); border-radius:6px; padding:4px 9px; cursor:pointer; font-size:14px; line-height:1;">⋯</button>
         ${state.optionsOpen ? `
         <div id="optionsMenu" style="position:absolute; top:32px; right:0; background:var(--input); border:1px solid var(--line); border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,0.12); overflow:hidden; z-index:50; min-width:150px;">
-          <button id="optConfig" style="display:block; width:100%; text-align:left; padding:10px 14px; background:none; border:none; color:var(--faint); font-size:12.5px; cursor:not-allowed; font-family:'IBM Plex Mono',monospace;">Configuración</button>
+          <button id="optConfig" style="display:block; width:100%; text-align:left; padding:10px 14px; background:none; border:none; color:var(--text); font-size:12.5px; cursor:pointer; font-family:'IBM Plex Mono',monospace;">Configuración</button>
           <button id="optSalir" style="display:block; width:100%; text-align:left; padding:10px 14px; background:none; border:none; border-top:1px solid var(--line); color:var(--pagar); font-size:12.5px; cursor:pointer; font-family:'IBM Plex Mono',monospace;">Salir</button>
         </div>` : ''}
       </div>
@@ -754,6 +798,7 @@ function render(){
     </div>
     ${state.view === 'dashboard' ? renderDashboardHTML() : renderMesHTML()}
     ${renderDetailModal()}
+    ${renderConfigModal()}
   `;
   document.getElementById('tabMes').onclick = () => { state.view = 'mes'; render(); };
   document.getElementById('tabDashboard').onclick = () => {
@@ -773,12 +818,24 @@ function render(){
       state.optionsOpen = false;
       render();
     };
+    document.getElementById('optConfig').onclick = () => {
+      state.optionsOpen = false;
+      state.configOpen = true;
+      render();
+    };
     document.addEventListener('click', function closeMenu(){
       state.optionsOpen = false;
       render();
       document.removeEventListener('click', closeMenu);
     }, { once:true });
   }
+
+  const configClose = document.getElementById('configModalClose');
+  if(configClose) configClose.onclick = () => { state.configOpen = false; render(); };
+  const configBackdrop = document.getElementById('configModalBackdrop');
+  if(configBackdrop) configBackdrop.onclick = (ev) => { if(ev.target === configBackdrop){ state.configOpen = false; render(); } };
+  const reorganizarBtn = document.getElementById('btnReorganizar');
+  if(reorganizarBtn) reorganizarBtn.onclick = reorganizarPorFecha;
 
   const modalClose = document.getElementById('detailModalClose');
   if(modalClose) modalClose.onclick = () => { state.viewingEntryId = null; render(); };
@@ -788,6 +845,25 @@ function render(){
   if(state.view === 'mes') attachMesEvents();
   else attachDashboardEvents();
   drawCharts();
+}
+
+function renderConfigModal(){
+  if(!state.configOpen) return '';
+  return `
+    <div id="configModalBackdrop" style="position:fixed; inset:0; background:rgba(22,24,27,0.5); z-index:100; display:flex; align-items:flex-end; justify-content:center;">
+      <div style="background:var(--input); width:100%; max-width:520px; border-radius:16px 16px 0 0; padding:20px 18px 28px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <div class="eyebrow">Configuración</div>
+          <button id="configModalClose" style="background:none; border:none; font-size:20px; color:var(--muted); cursor:pointer;">✕</button>
+        </div>
+        <div style="font-size:12.5px; color:var(--text); font-weight:600; margin-bottom:6px;">Reorganizar comprobantes por fecha</div>
+        <div style="font-size:11.5px; color:var(--muted); margin-bottom:12px; line-height:1.5;">
+          Revisa todos los comprobantes cargados y los mueve al mes que corresponde según su propia fecha (o fecha de vencimiento en el caso de los VEP). Útil si algo quedó guardado en el mes equivocado.
+        </div>
+        <button class="save-btn" id="btnReorganizar">Reorganizar ahora</button>
+      </div>
+    </div>
+  `;
 }
 
 function renderDetailModal(){
@@ -890,9 +966,9 @@ function renderMesHTML(){
       </div>
     </div>
 
-    <button class="add-toggle" id="toggleForm">${state.formOpen ? '– Cerrar' : '+ Cargar comprobante'}</button>
-
     <button class="vep-toggle" id="toggleVep">${state.vepFormOpen ? '– Cerrar' : '= Cierre Mes (VEP)'}</button>
+
+    <button class="add-toggle" id="toggleForm">${state.formOpen ? '– Cerrar' : '+ Cargar comprobante'}</button>
 
     <div class="form-panel ${state.vepFormOpen ? 'open' : ''}" id="vepPanel">
       ${!state.vepUpload ? `
